@@ -43,11 +43,10 @@ const FeedbackPage: React.FC = () => {
     fetchStats
   } = useFeedbackStore();
 
-  // 页面加载时获取数据
+  // 页面加载时获取数据 - fetchStats 会在 fetchFeedbacks 完成后自动调用
   useEffect(() => {
     fetchFeedbacks();
-    fetchStats();
-  }, [fetchFeedbacks, fetchStats]);
+  }, [fetchFeedbacks]);
 
   // 处理建议提交
   const handleSubmitFeedback = async (data: FeedbackFormData) => {

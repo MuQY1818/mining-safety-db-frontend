@@ -1,4 +1,4 @@
-// 建议列表组件
+// 建议列表组件 - 简化版本用于测试API修复
 import React, { useState } from 'react';
 import {
   Card,
@@ -101,92 +101,10 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
     return new Date(timeStr).toLocaleString('zh-CN');
   };
 
-  // 渲染建议项
-  const renderFeedbackItem = (item: UserFeedback) => (
-    <List.Item
-      key={item.id}
-      actions={[
-        <Space key="actions">
-          <Tooltip title="查看详情">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => handleViewDetail(item)}
-            />
-          </Tooltip>
-          <Tooltip title="点赞">
-            <Button
-              type="text"
-              icon={<LikeOutlined />}
-              onClick={() => handleVote(item.id, 'up')}
-            >
-              {item.upvotes || 0}
-            </Button>
-          </Tooltip>
-          <Tooltip title="点踩">
-            <Button
-              type="text"
-              icon={<DislikeOutlined />}
-              onClick={() => handleVote(item.id, 'down')}
-            >
-              {item.downvotes || 0}
-            </Button>
-          </Tooltip>
-        </Space>
-      ]}
-    >
-      <List.Item.Meta
-        avatar={
-          <Avatar 
-            icon={<UserOutlined />} 
-            style={{ backgroundColor: MINING_BLUE_COLORS.primary }}
-          />
-        }
-        title={
-          <Space>
-            <Text strong style={{ color: MINING_BLUE_COLORS.primary }}>
-              {item.title}
-            </Text>
-            <Tag color={typeConfig[item.type].color}>
-              {typeConfig[item.type].label}
-            </Tag>
-            <Tag color={priorityConfig[item.priority].color}>
-              {priorityConfig[item.priority].label}
-            </Tag>
-            <Tag color={statusConfig[item.status].color}>
-              {statusConfig[item.status].label}
-            </Tag>
-          </Space>
-        }
-        description={
-          <div>
-            <Paragraph 
-              ellipsis={{ rows: 2, expandable: false }} 
-              style={{ margin: '8px 0', color: '#666' }}
-            >
-              {item.description}
-            </Paragraph>
-            <Space size="large" style={{ fontSize: 12, color: '#999' }}>
-              <span>
-                <UserOutlined style={{ marginRight: 4 }} />
-                {item.userName || '匿名用户'}
-              </span>
-              <span>
-                <CalendarOutlined style={{ marginRight: 4 }} />
-                {formatTime(item.createdAt)}
-              </span>
-              {item.adminReply && (
-                <span>
-                  <MessageOutlined style={{ marginRight: 4 }} />
-                  已回复
-                </span>
-              )}
-            </Space>
-          </div>
-        }
-      />
-    </List.Item>
-  );
+  // 安全获取配置
+  const getTypeConfig = (type: string) => typeConfig[type as FeedbackType] || { color: 'default', label: type };
+  const getPriorityConfig = (priority?: string) => priority ? (priorityConfig[priority as FeedbackPriority] || { color: 'default', label: priority }) : null;
+  const getStatusConfig = (status: string) => statusConfig[status as FeedbackStatus] || { color: 'default', label: status };
 
   return (
     <div>
@@ -262,7 +180,84 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
         <List
           loading={loading}
           dataSource={feedbacks}
-          renderItem={renderFeedbackItem}
+          renderItem={(item) => {
+            const typeConf = getTypeConfig(item.type);
+            const priorityConf = getPriorityConfig(item.priority);
+            const statusConf = getStatusConfig(item.status);
+
+            return (
+              <List.Item
+                key={item.id}
+                actions={[
+                  <Space key="actions">
+                    <Tooltip title="查看详情">
+                      <Button
+                        type="text"
+                        icon={<EyeOutlined />}
+                        onClick={() => handleViewDetail(item)}
+                      />
+                    </Tooltip>
+                    <Tooltip title="点赞">
+                      <Button
+                        type="text"
+                        icon={<LikeOutlined />}
+                        onClick={() => handleVote(item.id, 'up')}
+                      >
+                        {item.upvotes || 0}
+                      </Button>
+                    </Tooltip>
+                  </Space>
+                ]}
+              >
+                <List.Item.Meta
+                  avatar={
+                    <Avatar 
+                      icon={<UserOutlined />} 
+                      style={{ backgroundColor: MINING_BLUE_COLORS.primary }}
+                    />
+                  }
+                  title={
+                    <Space>
+                      <Text strong style={{ color: MINING_BLUE_COLORS.primary }}>
+                        {item.title}
+                      </Text>
+                      <Tag color={typeConf.color}>
+                        {typeConf.label}
+                      </Tag>
+                      {priorityConf && (
+                        <Tag color={priorityConf.color}>
+                          {priorityConf.label}
+                        </Tag>
+                      )}
+                      <Tag color={statusConf.color}>
+                        {statusConf.label}
+                      </Tag>
+                    </Space>
+                  }
+                  description={
+                    <div>
+                      <Paragraph 
+                        ellipsis={{ rows: 2, expandable: false }} 
+                        style={{ margin: '8px 0', color: '#666' }}
+                      >
+                        {item.description}
+                      </Paragraph>
+                      <Space size="large" style={{ fontSize: 12, color: '#999' }}>
+                        <span>
+                          <UserOutlined style={{ marginRight: 4 }} />
+                          {item.userName || '匿名用户'}
+                        </span>
+                        <span>
+                          <CalendarOutlined style={{ marginRight: 4 }} />
+                          {formatTime(item.createdAt)}
+                        </span>
+                      </Space>
+                    </div>
+                  }
+                />
+              </List.Item>
+            );
+          }}
           locale={{
             emptyText: (
               <Empty
@@ -302,14 +297,16 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
         {selectedFeedback && (
           <div>
             <Space style={{ marginBottom: 16 }}>
-              <Tag color={typeConfig[selectedFeedback.type].color}>
-                {typeConfig[selectedFeedback.type].label}
+              <Tag color={getTypeConfig(selectedFeedback.type).color}>
+                {getTypeConfig(selectedFeedback.type).label}
               </Tag>
-              <Tag color={priorityConfig[selectedFeedback.priority].color}>
-                优先级: {priorityConfig[selectedFeedback.priority].label}
-              </Tag>
-              <Tag color={statusConfig[selectedFeedback.status].color}>
-                {statusConfig[selectedFeedback.status].label}
+              {getPriorityConfig(selectedFeedback.priority) && (
+                <Tag color={getPriorityConfig(selectedFeedback.priority)!.color}>
+                  优先级: {getPriorityConfig(selectedFeedback.priority)!.label}
+                </Tag>
+              )}
+              <Tag color={getStatusConfig(selectedFeedback.status).color}>
+                {getStatusConfig(selectedFeedback.status).label}
               </Tag>
             </Space>
             

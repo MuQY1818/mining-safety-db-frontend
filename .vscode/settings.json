@@ -1,0 +1,17 @@
+{
+    "sqltools.connections": [
+        {
+            "mysqlOptions": {
+                "authProtocol": "default",
+                "enableSsl": "Disabled"
+            },
+            "previewLimit": 50,
+            "server": "117.72.145.157",
+            "port": 3306,
+            "driver": "MySQL",
+            "name": "Mining-DB",
+            "database": "mining_db",
+            "username": "root"
+        }
+    ]
+}

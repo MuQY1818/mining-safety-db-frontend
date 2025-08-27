@@ -169,7 +169,45 @@ class ApiService {
 
   // 反馈相关API
   async submitFeedback(feedback: any): Promise<void> {
-    await this.client.post('/feedback', feedback);
+    // 转换前端数据结构为后端API契约格式
+    const backendFeedback = {
+      type: this.mapFeedbackType(feedback.type),
+      title: feedback.title,
+      content: feedback.description, // description -> content
+      contactInfo: this.buildContactInfo(feedback) // 合并联系信息
+    };
+
+    await this.client.post('/feedback', backendFeedback);
+  }
+
+  // 映射前端反馈类型到后端类型
+  private mapFeedbackType(frontendType: string): string {
+    const typeMapping: Record<string, string> = {
+      'bug_report': 'bug',
+      'feature_request': 'feature', 
+      'content_suggestion': 'improvement',
+      'ui_improvement': 'improvement',
+      'performance': 'improvement',
+      'other': 'other'
+    };
+    return typeMapping[frontendType] || 'other';
+  }
+
+  // 构建联系信息字符串
+  private buildContactInfo(feedback: any): string {
+    const contactParts: string[] = [];
+    
+    if (feedback.userName) {
+      contactParts.push(`姓名: ${feedback.userName}`);
+    }
+    if (feedback.userEmail) {
+      contactParts.push(`邮箱: ${feedback.userEmail}`);
+    }
+    if (feedback.userContact) {
+      contactParts.push(`联系方式: ${feedback.userContact}`);
+    }
+    
+    return contactParts.join(' | ') || '';
   }
 
   async getFeedbackList(query?: any): Promise<PaginatedResponse<any>> {

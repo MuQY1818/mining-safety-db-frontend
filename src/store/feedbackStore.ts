@@ -81,6 +81,9 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
       // Apply current filters
       get().applyFilters();
       
+      // Update statistics after fetching data
+      get().fetchStats();
+      
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : '获取反馈列表失败',
