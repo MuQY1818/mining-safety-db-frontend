@@ -1,11 +1,11 @@
 import { useAuthStore } from '../store/authStore';
 import { renderHook, act } from '@testing-library/react';
 
-// Mock the apiService
+// 模拟apiService
 jest.mock('../services/api', () => ({
   apiService: {
     login: jest.fn(),
-    logout: jest.fn(),
+    logout: jest.fn().mockResolvedValue({}),
     getProfile: jest.fn()
   }
 }));
@@ -14,7 +14,7 @@ const mockApiService = require('../services/api').apiService;
 
 describe('AuthStore', () => {
   beforeEach(() => {
-    // Clear all mocks and localStorage
+    // 清除所有模拟和本地存储
     jest.clearAllMocks();
     localStorage.clear();
   });
@@ -33,11 +33,14 @@ describe('AuthStore', () => {
 
   describe('login', () => {
     it('should login successfully and update state', async () => {
+      // 模拟JWT token（包含用户ID）
+      const mockJwtToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE2MzQ1NjQ3ODksImV4cCI6MTYzNDY1MTE4OX0.mock-signature';
+      
       const mockResponse = {
-        token: 'mock-jwt-token-1',
+        token: mockJwtToken,
         user: {
           id: 1,
-          username: 'admin',
+          userName: 'admin',
           realName: '管理员',
           role: 'admin'
         }
@@ -53,17 +56,20 @@ describe('AuthStore', () => {
 
       expect(result.current.user).toEqual({
         id: 1,
-        username: 'admin',
+        userName: 'admin',
+        realName: '管理员',
+        phone: '',
         role: 'admin',
-        email: 'admin@mining.com'
+        email: 'admin@mining.com',
+        avatar: ''
       });
-      expect(result.current.token).toBe('mock-jwt-token-1');
+      expect(result.current.token).toBe(mockJwtToken);
       expect(result.current.isAuthenticated).toBe(true);
       expect(result.current.isLoading).toBe(false);
       expect(result.current.error).toBeNull();
       
-      // Check if token is stored in localStorage
-      expect(localStorage.getItem('auth_token')).toBe('mock-jwt-token-1');
+      // 检查token是否存储在localStorage中
+      expect(localStorage.getItem('auth_token')).toBe(mockJwtToken);
     });
 
     it('should handle login failure', async () => {
@@ -87,15 +93,15 @@ describe('AuthStore', () => {
 
   describe('logout', () => {
     it('should logout and clear state', async () => {
-      // Set initial logged in state
+      // 设置初始登录状态
       localStorage.setItem('auth_token', 'mock-token');
       
       const { result } = renderHook(() => useAuthStore());
 
-      // Set initial state
+      // 设置初始状态
       act(() => {
         result.current.setUser({
-          id: 'admin',
+          id: 1,
           userName: 'admin',
           role: 'admin',
           email: 'admin@mining.com'
@@ -116,10 +122,10 @@ describe('AuthStore', () => {
       expect(result.current.isLoading).toBe(false);
       expect(result.current.error).toBeNull();
       
-      // Check if token is removed from localStorage
+      // 检查token是否从 localStorage中移除
       expect(localStorage.getItem('auth_token')).toBeNull();
       
-      // Check if logout API was called
+      // 检查是否调用了登出API
       expect(mockApiService.logout).toHaveBeenCalled();
     });
   });
@@ -128,14 +134,14 @@ describe('AuthStore', () => {
     it('should clear error state', () => {
       const { result } = renderHook(() => useAuthStore());
 
-      // Set error state
+      // 设置错误状态
       act(() => {
         result.current.setError('Test error');
       });
 
       expect(result.current.error).toBe('Test error');
 
-      // Clear error
+      // 清除错误
       act(() => {
         result.current.clearError();
       });
@@ -148,13 +154,14 @@ describe('AuthStore', () => {
     it('should check auth status with valid token', async () => {
       const mockProfile = {
         id: 1,
-        username: 'admin',
+        userName: 'admin',
         realName: '管理员',
         role: 'admin',
         email: 'admin@mining.com'
       };
 
-      localStorage.setItem('auth_token', 'mock-jwt-token-1');
+      const mockJwtToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE2MzQ1NjQ3ODksImV4cCI6MTYzNDY1MTE4OX0.mock-signature';
+      localStorage.setItem('auth_token', mockJwtToken);
       mockApiService.getProfile.mockResolvedValue(mockProfile);
 
       const { result } = renderHook(() => useAuthStore());
@@ -166,9 +173,12 @@ describe('AuthStore', () => {
       expect(result.current.isAuthenticated).toBe(true);
       expect(result.current.user).toEqual({
         id: 1,
-        username: 'admin',
+        userName: 'admin',
+        realName: '管理员',
+        phone: '',
         role: 'admin',
-        email: 'admin@mining.com'
+        email: 'admin@mining.com',
+        avatar: ''
       });
       expect(result.current.isLoading).toBe(false);
     });
@@ -206,10 +216,10 @@ describe('AuthStore', () => {
     it('should persist auth state', () => {
       const { result: result1 } = renderHook(() => useAuthStore());
       
-      // Set auth state
+      // 设置认证状态
       act(() => {
         result1.current.setUser({
-          id: 'admin',
+          id: 1,
           userName: 'admin',
           role: 'admin',
           email: 'admin@mining.com'
@@ -218,13 +228,13 @@ describe('AuthStore', () => {
         result1.current.setAuthenticated(true);
       });
 
-      // Create new hook instance
+      // 创建新的hook实例
       const { result: result2 } = renderHook(() => useAuthStore());
 
-      // State should be persisted
+      // 状态应该被持久化
       expect(result2.current.user).toEqual({
         id: 1,
-        username: 'admin',
+        userName: 'admin',
         role: 'admin',
         email: 'admin@mining.com'
       });

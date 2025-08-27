@@ -4,6 +4,34 @@ import { persist } from 'zustand/middleware';
 import { User } from '../types/database';
 import { apiService } from '../services/api';
 
+// JWT token解析工具函数
+const parseJwt = (token: string): any => {
+  try {
+    if (!token || typeof token !== 'string') {
+      return null;
+    }
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return null;
+    }
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('JWT token解析失败:', error);
+    return null;
+  }
+};
+
+// 从JWT token中获取用户ID
+const getUserIdFromToken = (token: string): number | null => {
+  const payload = parseJwt(token);
+  return payload?.userId || payload?.id || payload?.sub ? parseInt(payload.userId || payload.id || payload.sub) : null;
+};
+
 interface AuthState {
   // 状态
   user: User | null;
@@ -17,6 +45,7 @@ interface AuthState {
   logout: () => void;
   clearError: () => void;
   checkAuth: () => Promise<void>;
+  clearUserData: (userId?: number) => void;
   // 内部方法（用于测试）
   setUser: (user: User) => void;
   setToken: (token: string) => void;
@@ -49,16 +78,21 @@ export const useAuthStore = create<AuthState>()(
           // 保存token到localStorage
           localStorage.setItem('auth_token', loginResponse.token);
 
-          // 获取完整用户信息
-          const profile = await apiService.getProfile();
+          // 从token中解析用户ID
+          const userId = getUserIdFromToken(loginResponse.token);
+          if (!userId) {
+            throw new Error('无法从token中获取用户ID');
+          }
+
+          // 使用登录响应中的用户信息，补充必要字段
           const user: User = {
-            id: profile.userName, // 使用userName作为唯一标识
-            userName: profile.userName,
-            realName: profile.realName,
-            phone: profile.phone,
-            role: profile.role as 'admin' | 'user',
-            email: profile.email,
-            avatar: profile.avatar
+            id: userId, // 从JWT token解析的数字ID
+            userName: loginResponse.user?.userName || 'unknown',
+            realName: loginResponse.user?.realName || '',
+            phone: loginResponse.user?.phone || '',
+            role: (loginResponse.user?.role as 'admin' | 'user') || 'user',
+            email: loginResponse.user?.email || `${loginResponse.user?.userName || 'user'}@mining.com`,
+            avatar: loginResponse.user?.avatar || ''
           };
 
           // 确保状态更新成功
@@ -90,11 +124,20 @@ export const useAuthStore = create<AuthState>()(
 
       // 登出
       logout: () => {
+        // 获取当前用户ID用于清理
+        const currentUser = get().user;
+        
         // 调用API登出
         apiService.logout().catch(console.error);
         
         // 清除本地状态
         localStorage.removeItem('auth_token');
+        
+        // 清理用户特定数据
+        if (currentUser?.id) {
+          get().clearUserData(currentUser.id);
+        }
+        
         set({
           user: null,
           token: null,
@@ -144,16 +187,22 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
 
         try {
+          // 从token中解析用户ID
+          const userId = getUserIdFromToken(token);
+          if (!userId) {
+            throw new Error('token中缺少用户ID信息');
+          }
+
           // 获取用户信息
           const profile = await apiService.getProfile();
           const user: User = {
-            id: profile.userName, // 使用userName作为唯一标识
-            userName: profile.userName,
-            realName: profile.realName,
-            phone: profile.phone,
-            role: profile.role as 'admin' | 'user',
-            email: profile.email,
-            avatar: profile.avatar
+            id: userId, // 从JWT token解析的数字ID
+            userName: profile?.userName || 'unknown',
+            realName: profile?.realName || '',
+            phone: profile?.phone || '',
+            role: (profile?.role as 'admin' | 'user') || 'user',
+            email: profile?.email || `${profile?.userName || 'user'}@mining.com`,
+            avatar: profile?.avatar || ''
           };
 
           set({
@@ -184,6 +233,35 @@ export const useAuthStore = create<AuthState>()(
               error: null
             });
           }
+        }
+      },
+
+      // 清理用户特定数据
+      clearUserData: (userId?: number) => {
+        try {
+          // 如果没有提供userId，从当前状态获取
+          const targetUserId = userId || get().user?.id;
+          if (!targetUserId) {
+            return;
+          }
+
+          // 清理用户特定的存储数据
+          const userStorageKeys = [
+            `chat-store-user-${targetUserId}`,
+            `safety-data-store-user-${targetUserId}`,
+            `feedback-store-user-${targetUserId}`
+          ];
+
+          userStorageKeys.forEach(key => {
+            localStorage.removeItem(key);
+          });
+
+          // 清理临时存储（如果存在）
+          localStorage.removeItem('chat-store-temp');
+          
+          console.log(`已清理用户 ${targetUserId} 的本地数据`);
+        } catch (error) {
+          console.error('清理用户数据时出错:', error);
         }
       }
     }),

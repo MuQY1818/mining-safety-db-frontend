@@ -44,12 +44,26 @@ const createApiClient = (): AxiosInstance => {
     (error) => {
       // 统一错误处理
       if (error.response?.status === 401) {
-        // Token过期，跳转登录
-        localStorage.removeItem('auth_token');
-        window.location.href = '/login';
+        // 避免在登录页面重复重定向
+        if (window.location.pathname !== '/login') {
+          console.log('检测到401错误，触发登出流程');
+          // 通过动态导入避免循环依赖
+          import('../store/authStore').then(({ useAuthStore }) => {
+            const authStore = useAuthStore.getState();
+            authStore.logout();
+            window.location.href = '/login';
+          });
+        }
+      } else if (error.response?.status >= 500) {
+        // 服务器错误，显示友好提示
+        console.error('❌ 服务器错误:', error.response?.status, error.config?.url);
+      } else if (!error.response) {
+        // 网络错误，不触发登出
+        console.error('❌ 网络连接错误:', error.message, error.config?.url);
+      } else {
+        console.error('❌ API Error:', error.response?.status, error.config?.url);
       }
       
-      console.error('❌ API Error:', error.response?.status, error.config?.url);
       return Promise.reject(error);
     }
   );

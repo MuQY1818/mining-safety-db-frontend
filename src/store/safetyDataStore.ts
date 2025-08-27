@@ -20,7 +20,7 @@ interface SafetyDataState {
     total: number;
   };
   
-  // Actions
+  // 操作方法
   setData: (data: SafetyData[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -30,7 +30,7 @@ interface SafetyDataState {
   applyFilters: () => void;
   clearFilters: () => void;
   
-  // Data management actions
+  // 数据管理操作
   fetchData: (params?: any) => Promise<void>;
   fetchDataById: (id: string) => Promise<SafetyData | null>;
   addData: (newData: Omit<SafetyData, 'id'>) => Promise<void>;
@@ -39,7 +39,7 @@ interface SafetyDataState {
 }
 
 export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
-  // Initial state
+  // 初始状态
   data: [],
   filteredData: [],
   loading: false,
@@ -52,7 +52,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     total: 0
   },
 
-  // Actions
+  // 操作方法
   setData: (data) => set({ data }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
@@ -68,7 +68,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     pagination: { ...state.pagination, ...pagination }
   })),
 
-  // Fetch data from real API
+  // 从真实API获取数据
   fetchData: async (params = {}) => {
     set({ loading: true, error: null });
     
@@ -95,7 +95,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
         loading: false
       });
       
-      // Apply filters to set filteredData
+      // 应用过滤器设置filteredData
       get().applyFilters();
       
     } catch (error) {
@@ -106,7 +106,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     }
   },
 
-  // Fetch single item by ID
+  // 根据ID获取单个项目
   fetchDataById: async (id: string) => {
     try {
       set({ loading: true, error: null });
@@ -123,14 +123,14 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     }
   },
 
-  // Add new data via API
+  // 通过API添加新数据
   addData: async (newData) => {
     set({ loading: true, error: null });
     
     try {
       await apiService.createSafetyData(newData);
       
-      // Refresh data after adding
+      // 添加后刷新数据
       await get().fetchData();
       
     } catch (error) {
@@ -141,7 +141,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     }
   },
 
-  // Update data via API
+  // 通过API更新数据
   updateData: async (id: string, updatedData) => {
     set({ loading: true, error: null });
     
@@ -150,7 +150,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
       const fullData = { ...updatedData, id: numericId } as SafetyData;
       await apiService.updateSafetyData(fullData);
       
-      // Refresh data after updating
+      // 更新后刷新数据
       await get().fetchData();
       
     } catch (error) {
@@ -161,7 +161,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     }
   },
 
-  // Delete data via API
+  // 通过API删除数据
   deleteData: async (id: string) => {
     set({ loading: true, error: null });
     
@@ -169,7 +169,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
       const numericId = parseInt(id, 10);
       await apiService.deleteSafetyData(numericId);
       
-      // Remove from local state immediately
+      // 立即从本地状态中移除
       const { data } = get();
       const updatedData = data.filter(item => item.id !== numericId);
       
@@ -178,7 +178,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
         loading: false
       });
       
-      // Apply filters to update filteredData
+      // 应用过滤器更新filteredData
       get().applyFilters();
       
     } catch (error) {
@@ -189,12 +189,12 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     }
   },
 
-  // Apply filters and search
+  // 应用过滤器和搜索
   applyFilters: () => {
     const { data, filters, searchTerm } = get();
     let filtered = [...data];
 
-    // Apply search term
+    // 应用搜索关键词
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(item =>
@@ -203,17 +203,17 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
       );
     }
 
-    // Apply safety level filter
+    // 应用安全等级过滤器
     if (filters.safetyLevel) {
       filtered = filtered.filter(item => item.safetyLevel === filters.safetyLevel);
     }
 
-    // Apply mine type filter
+    // 应用矿区类型过滤器
     if (filters.mineType) {
       filtered = filtered.filter(item => item.mineType === filters.mineType);
     }
 
-    // Apply category filter
+    // 应用类别过滤器
     if (filters.category) {
       filtered = filtered.filter(item => item.category === filters.category);
     }
@@ -221,7 +221,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     set({ filteredData: filtered });
   },
 
-  // Clear all filters
+  // 清除所有过滤器
   clearFilters: () => {
     set({
       searchTerm: '',

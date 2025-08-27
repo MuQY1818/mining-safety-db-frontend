@@ -1,12 +1,12 @@
 // API服务测试
 import { apiService } from './api';
 
-// Note: These tests are placeholder tests for API service
-// In a real-world scenario, you would mock the actual API responses
+// 注意：这些测试是API服务的占位符测试
+// 在实际情况中，您应该模拟实际的API响应
 
 describe('ApiService', () => {
   beforeEach(() => {
-    // Reset any mocks before each test
+    // 在每个测试前重置所有模拟
     jest.clearAllMocks();
   });
 
@@ -26,6 +26,6 @@ describe('ApiService', () => {
     expect(typeof apiService.submitFeedback).toBe('function');
   });
 
-  // TODO: Add proper integration tests with real API endpoints
-  // or use MSW (Mock Service Worker) for more realistic testing
+  // TODO: 添加与真实API端点的正确集成测试
+  // 或使用MSW (Mock Service Worker)进行更真实的测试
 });

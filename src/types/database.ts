@@ -117,7 +117,7 @@ export interface PaginatedResponse<T> {
 
 // 用户信息类型
 export interface User {
-  id?: string; // 后端profile接口未返回ID，使用userName作为唯一标识
+  id: number; // 数字类型用户ID，用于后端API调用
   userName: string; // 匹配后端字段名
   realName?: string; // 后端返回的真实姓名
   phone?: string; // 后端返回的电话号码

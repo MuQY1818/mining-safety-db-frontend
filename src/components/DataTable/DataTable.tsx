@@ -25,7 +25,7 @@ import {
   MiningType,
   LanguageType
 } from '../../types/database';
-// Labels for display
+// 显示标签
 const safetyLevelLabels = {
   LOW: '低风险',
   MEDIUM: '中等风险', 

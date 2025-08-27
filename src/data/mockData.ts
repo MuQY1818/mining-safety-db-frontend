@@ -1,2 +1,2 @@
-// This file has been removed - using real backend API instead of mock data
+// 此文件已移除 - 使用真实后端API替代模拟数据
 export {};

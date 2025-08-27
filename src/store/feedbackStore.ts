@@ -16,14 +16,14 @@ interface FeedbackState {
     total: number;
   };
   
-  // Actions
+  // 操作方法
   setFeedbacks: (feedbacks: UserFeedback[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setFilters: (filters: Partial<FeedbackFilters>) => void;
   setPagination: (pagination: Partial<FeedbackState['pagination']>) => void;
   
-  // Data operations
+  // 数据操作
   fetchFeedbacks: (params?: any) => Promise<void>;
   submitFeedback: (data: FeedbackFormData) => Promise<void>;
   voteFeedback: (id: string, type: 'up' | 'down') => Promise<void>;
@@ -33,7 +33,7 @@ interface FeedbackState {
 }
 
 export const useFeedbackStore = create<FeedbackState>((set, get) => ({
-  // Initial state
+  // 初始状态
   feedbacks: [],
   filteredFeedbacks: [],
   loading: false,
@@ -46,7 +46,7 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
     total: 0
   },
 
-  // Actions
+  // 操作方法
   setFeedbacks: (feedbacks) => set({ feedbacks }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
@@ -55,7 +55,7 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
     pagination: { ...state.pagination, ...pagination }
   })),
 
-  // Fetch feedbacks from real API
+  // 从真实API获取反馈数据
   fetchFeedbacks: async (params = {}) => {
     set({ loading: true, error: null });
     
@@ -78,10 +78,10 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
         loading: false 
       });
       
-      // Apply current filters
+      // 应用当前过滤器
       get().applyFilters();
       
-      // Update statistics after fetching data
+      // 获取数据后更新统计信息
       get().fetchStats();
       
     } catch (error) {
@@ -92,12 +92,12 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
     }
   },
 
-  // Submit feedback via real API
+  // 通过真实API提交反馈
   submitFeedback: async (data) => {
     set({ loading: true, error: null });
     
     try {
-      // Transform data to match backend API format
+      // 转换数据以匹配后端API格式
       const apiData = {
         type: data.type,
         title: data.title,
@@ -110,7 +110,7 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
       
       await apiService.submitFeedback(apiData);
       
-      // Refresh feedbacks after submission
+      // 提交后刷新反馈列表
       await get().fetchFeedbacks();
       
     } catch (error) {
@@ -121,18 +121,18 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
     }
   },
 
-  // Vote feedback (placeholder - implement if backend supports)
+  // 反馈投票（占位符 - 如果后端支持则实现）
   voteFeedback: async (id, type) => {
-    // TODO: Implement if backend supports voting
+    // TODO: 如果后端支持投票则实现
     console.log(`Vote ${type} for feedback ${id}`);
   },
 
-  // Fetch statistics
+  // 获取统计数据
   fetchStats: async () => {
     try {
       const feedbacks = get().feedbacks;
       
-      // Calculate basic stats from current data
+      // 根据当前数据计算基础统计
       const stats: FeedbackStats = {
         total: feedbacks.length,
         byType: {
@@ -152,9 +152,9 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
           high: feedbacks.filter(f => f.priority === 'high').length,
           urgent: feedbacks.filter(f => f.priority === 'urgent').length
         },
-        recentCount: 0, // TODO: Calculate based on date
-        responseRate: 0, // TODO: Calculate response rate
-        averageResponseTime: 0 // TODO: Calculate average response time
+        recentCount: 0, // TODO: 根据日期计算
+        responseRate: 0, // TODO: 计算响应率
+        averageResponseTime: 0 // TODO: 计算平均响应时间
       };
       
       set({ stats });
@@ -164,7 +164,7 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
     }
   },
 
-  // Apply filters to feedbacks
+  // 对反馈应用过滤器
   applyFilters: () => {
     const { feedbacks, filters } = get();
     let filtered = [...feedbacks];
@@ -200,7 +200,7 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
     set({ filteredFeedbacks: filtered });
   },
 
-  // Clear all filters
+  // 清除所有过滤器
   clearFilters: () => {
     set({ filters: {} });
     get().applyFilters();

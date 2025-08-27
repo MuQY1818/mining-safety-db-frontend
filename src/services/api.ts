@@ -107,10 +107,20 @@ class ApiService {
         if (error.response?.status === 401) {
           // 避免在登录页面重复重定向
           if (window.location.pathname !== '/login') {
-            console.log('检测到401错误，清除认证信息并重定向到登录页');
-            localStorage.removeItem('auth_token');
-            window.location.href = '/login';
+            console.log('检测到401错误，触发登出流程');
+            // 通过动态导入避免循环依赖
+            import('../store/authStore').then(({ useAuthStore }) => {
+              const authStore = useAuthStore.getState();
+              authStore.logout();
+              window.location.href = '/login';
+            });
           }
+        } else if (error.response?.status >= 500) {
+          // 服务器错误，显示友好提示
+          console.error('服务器错误:', error.response?.status);
+        } else if (!error.response) {
+          // 网络错误，不触发登出
+          console.error('网络连接错误:', error.message);
         }
         return Promise.reject(error);
       }
@@ -224,7 +234,8 @@ class ApiService {
   // 健康检查
   async healthCheck(): Promise<boolean> {
     try {
-      await this.client.get('/user/login');
+      // 使用profile接口进行健康检查，因为它需要认证且是GET请求
+      await this.client.get('/user/profile');
       return true;
     } catch {
       return false;

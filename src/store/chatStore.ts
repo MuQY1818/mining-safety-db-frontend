@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 import { ChatMessage, ChatSession } from '../types/ai';
 import { aiApi } from '../services/ai';
 import { chatHistoryService, ChatSession as BackendChatSession, ChatMessage as BackendChatMessage } from '../services/chatHistory';
+import { useAuthStore } from './authStore';
 
 interface ChatState {
   // 状态
@@ -23,12 +24,22 @@ interface ChatState {
   updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
   clearError: () => void;
   initialize: () => Promise<void>;
+  switchUser: (userId: number) => void;
 }
+
+// 获取当前用户ID的辅助函数
+const getCurrentUserId = (): number => {
+  const authState = useAuthStore.getState();
+  if (!authState.user?.id) {
+    throw new Error('用户未登录或用户ID不可用');
+  }
+  return authState.user.id;
+};
 
 // 辅助函数：转换后端会话数据到前端格式
 const convertBackendSession = (backendSession: BackendChatSession): ChatSession => ({
   id: backendSession.id.toString(),  // 前端使用string ID
-  userId: 1, // TODO: 从认证状态获取
+  userId: getCurrentUserId(), // 从认证状态获取真实用户ID
   title: backendSession.title,
   status: 'active',  // 后端没有status字段，默认为active
   messageCount: backendSession.messageCount,
@@ -50,6 +61,33 @@ const convertBackendMessage = (backendMessage: BackendChatMessage): ChatMessage 
   modelName: backendMessage.modelName,
   responseTime: undefined  // 后端没有responseTime字段
 });
+
+// 用户数据隔离工具函数
+const loadUserData = (userId: number): Partial<ChatState> => {
+  try {
+    const key = `chat-store-user-${userId}`;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const data = JSON.parse(stored);
+      return {
+        sessions: data.sessions || [],
+        currentSession: data.currentSession || null
+      };
+    }
+  } catch (error) {
+    console.error('加载用户聊天数据失败:', error);
+  }
+  return { sessions: [], currentSession: null };
+};
+
+const saveUserData = (userId: number, data: { sessions: ChatSession[]; currentSession: ChatSession | null }) => {
+  try {
+    const key = `chat-store-user-${userId}`;
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (error) {
+    console.error('保存用户聊天数据失败:', error);
+  }
+};
 
 export const useChatStore = create<ChatState>()(
   persist(
@@ -89,7 +127,7 @@ export const useChatStore = create<ChatState>()(
           // 创建新会话对象
           const newSession: ChatSession = {
             id: sessionId,
-            userId: 1,
+            userId: getCurrentUserId(), // 从认证状态获取真实用户ID
             title,
             status: 'active',
             messageCount: 0,
@@ -104,6 +142,12 @@ export const useChatStore = create<ChatState>()(
             currentSession: newSession,
             isLoading: false
           }));
+
+          // 保存用户数据
+          saveUserData(getCurrentUserId(), {
+            sessions: [newSession, ...get().sessions.slice(1)], // 新会话 + 其他会话
+            currentSession: newSession
+          });
 
           return sessionId;
         } catch (error) {
@@ -387,11 +431,18 @@ export const useChatStore = create<ChatState>()(
 
           await chatHistoryService.deleteSession(parseInt(sessionId));
 
-          set(state => ({
-            sessions: state.sessions.filter(s => s.id !== sessionId),
-            currentSession: state.currentSession?.id === sessionId ? null : state.currentSession,
+          const newState = {
+            sessions: get().sessions.filter(s => s.id !== sessionId),
+            currentSession: get().currentSession?.id === sessionId ? null : get().currentSession
+          };
+
+          set({
+            ...newState,
             isLoading: false
-          }));
+          });
+
+          // 保存用户数据
+          saveUserData(getCurrentUserId(), newState);
         } catch (error) {
           console.error('删除会话失败:', error);
           set({
@@ -412,17 +463,24 @@ export const useChatStore = create<ChatState>()(
             description: title  // 使用title作为description
           });
 
-          set(state => ({
-            sessions: state.sessions.map(s => 
+          const newState = {
+            sessions: get().sessions.map(s => 
               s.id === sessionId 
                 ? { ...s, title, updatedAt: new Date() }
                 : s
             ),
-            currentSession: state.currentSession?.id === sessionId 
-              ? { ...state.currentSession, title, updatedAt: new Date() }
-              : state.currentSession,
+            currentSession: get().currentSession?.id === sessionId 
+              ? { ...get().currentSession!, title, updatedAt: new Date() }
+              : get().currentSession
+          };
+
+          set({
+            ...newState,
             isLoading: false
-          }));
+          });
+
+          // 保存用户数据
+          saveUserData(getCurrentUserId(), newState);
         } catch (error) {
           console.error('更新会话标题失败:', error);
           set({
@@ -436,14 +494,45 @@ export const useChatStore = create<ChatState>()(
       // 清除错误
       clearError: () => {
         set({ error: null });
+      },
+
+      // 用户切换
+      switchUser: (userId: number) => {
+        try {
+          // 保存当前用户的数据（如果有的话）
+          const currentState = get();
+          if (currentState.sessions.length > 0 || currentState.currentSession) {
+            try {
+              const currentUserId = getCurrentUserId();
+              saveUserData(currentUserId, {
+                sessions: currentState.sessions,
+                currentSession: currentState.currentSession
+              });
+            } catch (error) {
+              console.warn('保存当前用户数据失败，可能是因为用户未登录:', error);
+            }
+          }
+
+          // 加载新用户的数据
+          const userData = loadUserData(userId);
+          set({
+            sessions: userData.sessions || [],
+            currentSession: userData.currentSession || null,
+            error: null
+          });
+
+          console.log(`已切换到用户 ${userId} 的聊天数据`);
+        } catch (error) {
+          console.error('用户切换失败:', error);
+          set({ error: '用户切换失败' });
+        }
       }
     }),
     {
-      name: 'chat-store',
+      name: 'chat-store-global',
+      // 由于需要用户隔离，我们手动处理数据持久化，这里只保存全局状态
       partialize: (state) => ({
-        // 只持久化基本信息，不持久化消息内容
-        sessions: state.sessions.map(s => ({ ...s, messages: [] })),
-        currentSession: state.currentSession ? { ...state.currentSession, messages: [] } : null
+        isInitialized: state.isInitialized
       })
     }
   )
