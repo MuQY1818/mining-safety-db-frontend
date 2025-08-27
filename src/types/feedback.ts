@@ -38,12 +38,16 @@ export interface UserFeedback {
   downvotes?: number; // 点踩数
 }
 
-// 建议提交表单数据
+// 建议提交表单数据 - 匹配后端SubmitFeedbackRequest
 export interface FeedbackFormData {
-  title: string;
-  description: string;
   type: FeedbackType;
-  priority: FeedbackPriority;
+  title: string;
+  content: string;          // 改为content匹配后端
+  contactInfo?: string;     // 合并联系信息到单个字段
+  
+  // 向后兼容的字段
+  description?: string;     // 兼容字段，会映射到content
+  priority?: FeedbackPriority;
   userEmail?: string;
   userName?: string;
   userContact?: string;

@@ -19,8 +19,6 @@ import {
 } from 'antd';
 import {
   LikeOutlined,
-  DislikeOutlined,
-  MessageOutlined,
   EyeOutlined,
   CalendarOutlined,
   UserOutlined,
@@ -30,7 +28,6 @@ import { UserFeedback, FeedbackType, FeedbackStatus, FeedbackPriority } from '..
 import { MINING_BLUE_COLORS } from '../../config/theme';
 
 const { Text, Paragraph } = Typography;
-const { TextArea } = Input;
 const { Option } = Select;
 
 interface FeedbackListProps {

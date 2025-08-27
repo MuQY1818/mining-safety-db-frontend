@@ -98,9 +98,9 @@ const Dashboard: React.FC = () => {
   };
 
   // 处理删除数据
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     try {
-      await deleteData(id);
+      await deleteData(String(id));
       message.success('删除成功！');
     } catch (error) {
       message.error('删除失败，请重试');
@@ -126,7 +126,7 @@ const Dashboard: React.FC = () => {
   const handleFormSubmit = async (formData: Partial<SafetyData>) => {
     try {
       if (editingData) {
-        await updateData(editingData.id, formData);
+        await updateData(String(editingData.id), formData);
         message.success('更新成功！');
       } else {
         await addData(formData as Omit<SafetyData, 'id'>);
@@ -178,7 +178,7 @@ const Dashboard: React.FC = () => {
           </Text>
           <br />
           <Text type="secondary" style={{ fontSize: '11px', color: '#999' }}>
-            📍 {record.location.province} {record.location.city}
+            📍 {record.province} {record.city}
           </Text>
         </div>
       )
@@ -205,7 +205,7 @@ const Dashboard: React.FC = () => {
       render: (_: any, record: SafetyData) => (
         <Space direction="vertical" size="small">
           <Text style={{ fontSize: 12 }}>
-            {new Date(record.publishDate).toLocaleDateString('zh-CN')}
+            {new Date(record.publishDate || record.createdAt).toLocaleDateString('zh-CN')}
           </Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
             <EyeOutlined style={{ marginRight: 4 }} />

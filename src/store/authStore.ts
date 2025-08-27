@@ -42,6 +42,10 @@ export const useAuthStore = create<AuthState>()(
           // 调用登录API获取token
           const loginResponse = await apiService.login(credentials.username, credentials.password);
           
+          if (!loginResponse.token) {
+            throw new Error('登录响应中缺少token');
+          }
+
           // 保存token到localStorage
           localStorage.setItem('auth_token', loginResponse.token);
 
@@ -57,6 +61,7 @@ export const useAuthStore = create<AuthState>()(
             avatar: profile.avatar
           };
 
+          // 确保状态更新成功
           set({
             user,
             token: loginResponse.token,
@@ -64,8 +69,18 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
             error: null
           });
+
+          console.log('登录成功，用户信息已保存:', user);
         } catch (error) {
+          console.error('登录失败:', error);
+          
+          // 清理可能的半状态
+          localStorage.removeItem('auth_token');
+          
           set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
             isLoading: false,
             error: error instanceof Error ? error.message : '登录失败'
           });
@@ -115,14 +130,21 @@ export const useAuthStore = create<AuthState>()(
         const token = localStorage.getItem('auth_token');
 
         if (!token) {
-          set({ isAuthenticated: false });
+          set({ isAuthenticated: false, isLoading: false });
+          return;
+        }
+
+        // 如果已经认证且有用户信息，跳过API调用
+        const currentState = get();
+        if (currentState.isAuthenticated && currentState.user && currentState.token) {
+          set({ isLoading: false });
           return;
         }
 
         set({ isLoading: true });
 
         try {
-          // 获取用户信息（移除mock token检查，直接使用真实API）
+          // 获取用户信息
           const profile = await apiService.getProfile();
           const user: User = {
             id: profile.userName, // 使用userName作为唯一标识
@@ -141,16 +163,27 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
             error: null
           });
-        } catch (error) {
-          // Token无效，清除认证状态
-          localStorage.removeItem('auth_token');
-          set({
-            user: null,
-            token: null,
-            isAuthenticated: false,
-            isLoading: false,
-            error: null
-          });
+        } catch (error: any) {
+          console.error('认证检查失败:', error);
+          
+          // 只在明确的401错误时才清除认证状态
+          // 其他错误（网络问题等）不应该导致用户被登出
+          if (error?.response?.status === 401) {
+            localStorage.removeItem('auth_token');
+            set({
+              user: null,
+              token: null,
+              isAuthenticated: false,
+              isLoading: false,
+              error: null
+            });
+          } else {
+            // 网络错误或其他临时问题，保持认证状态但停止加载
+            set({
+              isLoading: false,
+              error: null
+            });
+          }
         }
       }
     }),

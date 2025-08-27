@@ -23,7 +23,7 @@ import {
   MailOutlined,
   PhoneOutlined
 } from '@ant-design/icons';
-import { FeedbackFormData, FeedbackType, FeedbackPriority } from '../../types/feedback';
+import { FeedbackFormData } from '../../types/feedback';
 import { MINING_BLUE_COLORS } from '../../config/theme';
 import type { UploadFile } from 'antd/es/upload/interface';
 
@@ -38,11 +38,9 @@ interface FeedbackFormProps {
 
 // 建议类型选项
 const feedbackTypeOptions = [
-  { value: 'bug_report', label: '🐛 错误报告', description: '系统错误或异常' },
-  { value: 'feature_request', label: '✨ 功能建议', description: '新功能或改进' },
-  { value: 'content_suggestion', label: '📝 内容建议', description: '添加或修改内容' },
-  { value: 'ui_improvement', label: '🎨 界面改进', description: '界面设计改进' },
-  { value: 'performance', label: '⚡ 性能优化', description: '性能相关问题' },
+  { value: 'bug', label: '🐛 错误报告', description: '系统错误或异常' },
+  { value: 'feature', label: '✨ 功能建议', description: '新功能或改进' },
+  { value: 'improvement', label: '🎨 改进建议', description: '界面设计改进' },
   { value: 'other', label: '💬 其他', description: '其他建议' }
 ];
 
@@ -135,7 +133,7 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSubmit, loading = false }
         form={form}
         layout="vertical"
         initialValues={{
-          type: 'feature_request',
+          type: 'feature',
           priority: 'medium'
         }}
       >

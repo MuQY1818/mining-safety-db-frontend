@@ -82,10 +82,10 @@ const DataManagement: React.FC = () => {
   };
 
   // 处理删除数据
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     try {
       setLoading(true);
-      await deleteData(id);
+      await deleteData(String(id));
       message.success('删除成功！');
     } catch (error) {
       message.error('删除失败，请重试');
@@ -98,7 +98,7 @@ const DataManagement: React.FC = () => {
   const handleFormSubmit = async (formData: Partial<SafetyData>) => {
     try {
       if (editingData) {
-        await updateData(editingData.id, formData);
+        await updateData(String(editingData.id), formData);
       } else {
         await addData(formData as Omit<SafetyData, 'id'>);
       }
@@ -139,7 +139,7 @@ const DataManagement: React.FC = () => {
           </Text>
           <br />
           <Text type="secondary" style={{ fontSize: '11px', color: '#999' }}>
-            📍 {record.location.province} {record.location.city}
+            📍 {record.province} {record.city}
           </Text>
         </div>
       )
@@ -180,10 +180,10 @@ const DataManagement: React.FC = () => {
     },
     {
       title: '发布日期',
-      dataIndex: 'publishDate',
       key: 'publishDate',
       width: 120,
-      render: (date: string) => new Date(date).toLocaleDateString('zh-CN')
+      render: (_: any, record: SafetyData) => 
+        new Date(record.publishDate || record.createdAt).toLocaleDateString('zh-CN')
     },
     {
       title: '浏览次数',

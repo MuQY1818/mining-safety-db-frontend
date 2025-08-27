@@ -1,225 +1,121 @@
-// 聊天历史管理服务 - 与后端API交互
+// 聊天历史管理服务 - 与后端API交互，严格按照后端API文档
 import { apiClient } from './apiClient';
 
-// 聊天会话接口
+// 后端ChatSessionResponse接口 - 完全匹配后端返回格式
 export interface ChatSession {
-  id: string;
+  id: number;
   title: string;
-  description?: string;
-  status: 'active' | 'archived' | 'deleted';
+  description: string;
   messageCount: number;
-  totalTokens: number;
-  lastMessageAt?: string;
   createdAt: string;
   updatedAt: string;
-  lastMessage?: {
-    role: 'user' | 'assistant';
-    content: string;
-    createdAt: string;
-  };
 }
 
-// 聊天消息接口
+// 后端ChatMessageResponse接口 - 完全匹配后端返回格式  
 export interface ChatMessage {
-  id: string;
-  sessionId: string;
+  id: number;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  tokensUsed?: number;
-  modelName?: string;
-  responseTime?: number;
+  modelName: string;
   createdAt: string;
 }
 
-// 创建会话请求
+// 创建会话请求 - 匹配后端CreateChatSessionRequest
 export interface CreateSessionRequest {
   title: string;
   description?: string;
 }
 
-// 保存消息请求
-export interface SaveMessagesRequest {
-  messages: Array<{
-    role: 'user' | 'assistant';
-    content: string;
-    timestamp: string;
-    tokensUsed?: number;
-    modelName?: string;
-    responseTime?: number;
-  }>;
+// 保存消息请求 - 匹配后端SaveMessageRequest
+export interface SaveMessageRequest {
+  sessionId: number;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  modelName?: string;
 }
 
-// 聊天历史服务类
+// 聊天历史服务类 - 严格按照后端API文档
 export class ChatHistoryService {
-  private baseUrl = '/api/chat';
-
   /**
    * 创建新的聊天会话
+   * POST /api/chat
    */
-  async createSession(request: CreateSessionRequest): Promise<ChatSession> {
-    const response = await apiClient.post(`${this.baseUrl}/sessions`, request);
+  async createSession(request: CreateSessionRequest): Promise<{ sessionId: number }> {
+    const response = await apiClient.post('/api/chat', request);
     return response.data.data;
   }
 
   /**
    * 获取用户的聊天会话列表
+   * GET /api/chat?page=1&pageSize=10&order=desc
    */
   async getSessions(params?: {
     page?: number;
     pageSize?: number;
-    status?: 'active' | 'archived';
-    sortBy?: 'lastMessageAt' | 'createdAt';
-    sortOrder?: 'asc' | 'desc';
+    order?: 'asc' | 'desc';
   }): Promise<{
-    items: ChatSession[];
-    pagination: {
-      page: number;
-      pageSize: number;
-      total: number;
-      totalPages: number;
-      hasNext: boolean;
-      hasPrev: boolean;
-    };
+    page: number;
+    pageSize: number;
+    total: number;
+    list: ChatSession[];
   }> {
-    const response = await apiClient.get(`${this.baseUrl}/sessions`, { params });
+    const response = await apiClient.get('/api/chat', { params });
     return response.data.data;
   }
 
   /**
-   * 获取会话详情
+   * 更新会话信息  
+   * PUT /api/chat
    */
-  async getSession(sessionId: string): Promise<ChatSession> {
-    const response = await apiClient.get(`${this.baseUrl}/sessions/${sessionId}`);
-    return response.data.data;
-  }
-
-  /**
-   * 更新会话信息
-   */
-  async updateSession(sessionId: string, updates: {
-    title?: string;
-    description?: string;
-  }): Promise<ChatSession> {
-    const response = await apiClient.put(`${this.baseUrl}/sessions/${sessionId}`, updates);
-    return response.data.data;
+  async updateSession(sessionId: number, updates: {
+    id: number;
+    title: string;
+    description: string;
+  }): Promise<void> {
+    await apiClient.put('/api/chat', updates);
   }
 
   /**
    * 删除会话
+   * DELETE /api/chat?sessionId=123
    */
-  async deleteSession(sessionId: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/sessions/${sessionId}`);
+  async deleteSession(sessionId: number): Promise<void> {
+    await apiClient.delete('/api/chat', {
+      params: { sessionId }
+    });
   }
 
   /**
-   * 归档会话
+   * 保存单个消息
+   * POST /api/chat/messages
    */
-  async archiveSession(sessionId: string): Promise<ChatSession> {
-    const response = await apiClient.put(`${this.baseUrl}/sessions/${sessionId}/archive`);
-    return response.data.data;
-  }
-
-  /**
-   * 保存聊天消息到会话
-   */
-  async saveMessages(sessionId: string, request: SaveMessagesRequest): Promise<{
-    savedMessages: ChatMessage[];
-    sessionUpdated: {
-      messageCount: number;
-      totalTokens: number;
-      lastMessageAt: string;
-    };
-  }> {
-    const response = await apiClient.post(`${this.baseUrl}/sessions/${sessionId}/messages`, request);
-    return response.data.data;
+  async saveMessage(request: SaveMessageRequest): Promise<void> {
+    await apiClient.post('/api/chat/messages', request);
   }
 
   /**
    * 获取会话的消息历史
+   * GET /api/chat/messages?page=1&pageSize=10&order=desc&sessionId=123
    */
-  async getMessages(sessionId: string, params?: {
+  async getMessages(sessionId: number, params?: {
     page?: number;
     pageSize?: number;
-    role?: 'all' | 'user' | 'assistant';
-    sortOrder?: 'asc' | 'desc';
+    order?: 'asc' | 'desc';
   }): Promise<{
-    items: ChatMessage[];
-    pagination: {
-      page: number;
-      pageSize: number;
-      total: number;
-      totalPages: number;
-      hasNext: boolean;
-      hasPrev: boolean;
-    };
-    sessionInfo: {
-      id: string;
-      title: string;
-      messageCount: number;
-      totalTokens: number;
-    };
+    page: number;
+    pageSize: number;
+    total: number;
+    list: ChatMessage[];
   }> {
-    const response = await apiClient.get(`${this.baseUrl}/sessions/${sessionId}/messages`, { params });
-    return response.data.data;
-  }
-
-  /**
-   * 删除单个消息
-   */
-  async deleteMessage(messageId: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/messages/${messageId}`);
-  }
-
-  /**
-   * 批量删除消息
-   */
-  async deleteMessages(sessionId: string, messageIds: string[]): Promise<{
-    deletedCount: number;
-    sessionUpdated: {
-      messageCount: number;
-      totalTokens: number;
-      lastMessageAt?: string;
-    };
-  }> {
-    const response = await apiClient.delete(`${this.baseUrl}/sessions/${sessionId}/messages`, {
-      data: { messageIds }
+    const response = await apiClient.get('/api/chat/messages', { 
+      params: { 
+        ...params, 
+        sessionId 
+      } 
     });
     return response.data.data;
   }
 
-  /**
-   * 清空会话所有消息
-   */
-  async clearSession(sessionId: string): Promise<{
-    deletedCount: number;
-    sessionUpdated: {
-      messageCount: number;
-      totalTokens: number;
-      lastMessageAt: null;
-    };
-  }> {
-    const response = await apiClient.delete(`${this.baseUrl}/sessions/${sessionId}/messages/all`);
-    return response.data.data;
-  }
-
-  /**
-   * 对消息进行反馈
-   */
-  async submitFeedback(messageId: string, feedback: {
-    feedbackType: 'like' | 'dislike' | 'report';
-    feedbackReason?: string;
-    feedbackComment?: string;
-  }): Promise<{
-    id: string;
-    messageId: string;
-    feedbackType: string;
-    feedbackReason?: string;
-    feedbackComment?: string;
-    createdAt: string;
-  }> {
-    const response = await apiClient.post(`${this.baseUrl}/messages/${messageId}/feedback`, feedback);
-    return response.data.data;
-  }
 }
 
 // 导出服务实例
@@ -229,14 +125,8 @@ export const chatHistoryService = new ChatHistoryService();
 export const {
   createSession,
   getSessions,
-  getSession,
   updateSession,
   deleteSession,
-  archiveSession,
-  saveMessages,
-  getMessages,
-  deleteMessage,
-  deleteMessages,
-  clearSession,
-  submitFeedback
+  saveMessage,
+  getMessages
 } = chatHistoryService;

@@ -110,7 +110,8 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
   fetchDataById: async (id: string) => {
     try {
       set({ loading: true, error: null });
-      const data = await apiService.getSafetyDataById(id);
+      const numericId = parseInt(id, 10);
+      const data = await apiService.getSafetyDataById(numericId);
       set({ loading: false });
       return data;
     } catch (error) {
@@ -145,7 +146,9 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      await apiService.updateSafetyData(id, updatedData);
+      const numericId = parseInt(id, 10);
+      const fullData = { ...updatedData, id: numericId } as SafetyData;
+      await apiService.updateSafetyData(fullData);
       
       // Refresh data after updating
       await get().fetchData();
@@ -163,11 +166,12 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      await apiService.deleteSafetyData(id);
+      const numericId = parseInt(id, 10);
+      await apiService.deleteSafetyData(numericId);
       
       // Remove from local state immediately
       const { data } = get();
-      const updatedData = data.filter(item => item.id !== id);
+      const updatedData = data.filter(item => item.id !== numericId);
       
       set({
         data: updatedData,

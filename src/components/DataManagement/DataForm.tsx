@@ -19,7 +19,6 @@ import {
   CloseOutlined
 } from '@ant-design/icons';
 import { SafetyData } from '../../types/safety';
-import { MINING_BLUE_COLORS } from '../../config/theme';
 import type { UploadFile } from 'antd/es/upload/interface';
 
 const { TextArea } = Input;
@@ -75,7 +74,10 @@ const DataForm: React.FC<DataFormProps> = ({
     if (initialData) {
       form.setFieldsValue({
         ...initialData,
-        publishDate: initialData.publishDate ? new Date(initialData.publishDate) : null
+        publishDate: (initialData.publishDate || initialData.createdAt) ? new Date(initialData.publishDate || initialData.createdAt) : null,
+        province: initialData.province,
+        city: initialData.city,
+        district: initialData.district
       });
       // 设置文件列表
       if (initialData.downloadUrl) {
@@ -110,6 +112,9 @@ const DataForm: React.FC<DataFormProps> = ({
         ...values,
         downloadUrl,
         publishDate: values.publishDate?.toISOString(),
+        province: values.province,
+        city: values.city,
+        district: values.district,
         id: initialData?.id
       };
 
@@ -236,7 +241,7 @@ const DataForm: React.FC<DataFormProps> = ({
       <Row gutter={16}>
         <Col span={8}>
           <Form.Item
-            name={['location', 'province']}
+            name="province"
             label="省份"
             rules={[{ required: true, message: '请输入省份' }]}
           >
@@ -245,7 +250,7 @@ const DataForm: React.FC<DataFormProps> = ({
         </Col>
         <Col span={8}>
           <Form.Item
-            name={['location', 'city']}
+            name="city"
             label="城市"
             rules={[{ required: true, message: '请输入城市' }]}
           >
@@ -254,7 +259,7 @@ const DataForm: React.FC<DataFormProps> = ({
         </Col>
         <Col span={8}>
           <Form.Item
-            name={['location', 'district']}
+            name="district"
             label="区县"
           >
             <Input placeholder="请输入区县（可选）" />

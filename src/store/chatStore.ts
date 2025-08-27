@@ -21,35 +21,34 @@ interface ChatState {
   loadSessions: () => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
-  clearSession: (sessionId: string) => Promise<void>;
   clearError: () => void;
   initialize: () => Promise<void>;
 }
 
 // 辅助函数：转换后端会话数据到前端格式
 const convertBackendSession = (backendSession: BackendChatSession): ChatSession => ({
-  id: backendSession.id,
+  id: backendSession.id.toString(),  // 前端使用string ID
   userId: 1, // TODO: 从认证状态获取
   title: backendSession.title,
-  status: backendSession.status,
+  status: 'active',  // 后端没有status字段，默认为active
   messageCount: backendSession.messageCount,
-  totalTokens: backendSession.totalTokens,
+  totalTokens: 0,  // 后端没有totalTokens字段，默认为0
   createdAt: new Date(backendSession.createdAt),
   updatedAt: new Date(backendSession.updatedAt),
-  lastMessageAt: backendSession.lastMessageAt ? new Date(backendSession.lastMessageAt) : undefined,
+  lastMessageAt: undefined,  // 后端没有lastMessageAt字段
   messages: [] // 消息单独加载
 });
 
 // 辅助函数：转换后端消息数据到前端格式
 const convertBackendMessage = (backendMessage: BackendChatMessage): ChatMessage => ({
-  id: backendMessage.id,
-  sessionId: backendMessage.sessionId,
+  id: backendMessage.id.toString(),  // 前端使用string ID
+  sessionId: backendMessage.id.toString(),  // 统一转换为string
   role: backendMessage.role,
   content: backendMessage.content,
   timestamp: new Date(backendMessage.createdAt),
-  tokensUsed: backendMessage.tokensUsed,
+  tokensUsed: undefined,  // 后端没有tokensUsed字段
   modelName: backendMessage.modelName,
-  responseTime: backendMessage.responseTime
+  responseTime: undefined  // 后端没有responseTime字段
 });
 
 export const useChatStore = create<ChatState>()(
@@ -84,8 +83,21 @@ export const useChatStore = create<ChatState>()(
         try {
           set({ isLoading: true, error: null });
 
-          const backendSession = await chatHistoryService.createSession({ title });
-          const newSession = convertBackendSession(backendSession);
+          const result = await chatHistoryService.createSession({ title });
+          const sessionId = result.sessionId.toString();
+          
+          // 创建新会话对象
+          const newSession: ChatSession = {
+            id: sessionId,
+            userId: 1,
+            title,
+            status: 'active',
+            messageCount: 0,
+            totalTokens: 0,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            messages: []
+          };
 
           set(state => ({
             sessions: [newSession, ...state.sessions],
@@ -93,7 +105,7 @@ export const useChatStore = create<ChatState>()(
             isLoading: false
           }));
 
-          return newSession.id;
+          return sessionId;
         } catch (error) {
           console.error('创建会话失败:', error);
           set({ error: '创建会话失败', isLoading: false });
@@ -108,21 +120,21 @@ export const useChatStore = create<ChatState>()(
 
           let session = get().sessions.find(s => s.id === sessionId);
           if (!session) {
-            // 如果本地没有，从后端获取
-            const backendSession = await chatHistoryService.getSession(sessionId);
-            session = convertBackendSession(backendSession);
-            set(state => ({
-              sessions: [session!, ...state.sessions]
-            }));
+            // 如果本地没有会话，先从会话列表重新加载
+            await get().loadSessions();
+            session = get().sessions.find(s => s.id === sessionId);
+            if (!session) {
+              throw new Error('会话不存在');
+            }
           }
 
           // 加载会话消息
-          const messagesData = await chatHistoryService.getMessages(sessionId, {
+          const messagesData = await chatHistoryService.getMessages(parseInt(sessionId), {
             pageSize: 100,
-            sortOrder: 'asc'
+            order: 'asc'
           });
 
-          const messages = messagesData.items.map(convertBackendMessage);
+          const messages = messagesData.list.map(convertBackendMessage);
           const updatedSession = { ...session, messages };
 
           set(state => ({
@@ -242,21 +254,20 @@ export const useChatStore = create<ChatState>()(
           const finalAiMessage = get().currentSession?.messages.find(m => m.id === aiMessage.id);
           if (finalAiMessage) {
             try {
-              await chatHistoryService.saveMessages(currentSession.id, {
-                messages: [
-                  {
-                    role: 'user',
-                    content: userMessage.content,
-                    timestamp: userMessage.timestamp.toISOString()
-                  },
-                  {
-                    role: 'assistant',
-                    content: finalAiMessage.content,
-                    timestamp: finalAiMessage.timestamp.toISOString(),
-                    tokensUsed: Math.ceil(finalAiMessage.content.length / 4),
-                    modelName: 'qwen-plus'
-                  }
-                ]
+              // 保存用户消息
+              await chatHistoryService.saveMessage({
+                sessionId: parseInt(currentSession.id),
+                role: 'user',
+                content: userMessage.content,
+                modelName: 'user'
+              });
+              
+              // 保存AI消息
+              await chatHistoryService.saveMessage({
+                sessionId: parseInt(currentSession.id),
+                role: 'assistant',
+                content: finalAiMessage.content,
+                modelName: 'Qwen/Qwen2.5-7B-Instruct'
               });
             } catch (saveError) {
               console.error('保存消息到后端失败:', saveError);
@@ -351,11 +362,10 @@ export const useChatStore = create<ChatState>()(
 
           const sessionsData = await chatHistoryService.getSessions({
             pageSize: 50,
-            sortBy: 'lastMessageAt',
-            sortOrder: 'desc'
+            order: 'desc'
           });
 
-          const sessions = sessionsData.items.map(convertBackendSession);
+          const sessions = sessionsData.list.map(convertBackendSession);
 
           set({
             sessions,
@@ -375,7 +385,7 @@ export const useChatStore = create<ChatState>()(
         try {
           set({ isLoading: true, error: null });
 
-          await chatHistoryService.deleteSession(sessionId);
+          await chatHistoryService.deleteSession(parseInt(sessionId));
 
           set(state => ({
             sessions: state.sessions.filter(s => s.id !== sessionId),
@@ -396,12 +406,21 @@ export const useChatStore = create<ChatState>()(
         try {
           set({ isLoading: true, error: null });
 
-          const updatedSession = await chatHistoryService.updateSession(sessionId, { title });
-          const convertedSession = convertBackendSession(updatedSession);
+          await chatHistoryService.updateSession(parseInt(sessionId), {
+            id: parseInt(sessionId),
+            title,
+            description: title  // 使用title作为description
+          });
 
           set(state => ({
-            sessions: state.sessions.map(s => s.id === sessionId ? convertedSession : s),
-            currentSession: state.currentSession?.id === sessionId ? convertedSession : state.currentSession,
+            sessions: state.sessions.map(s => 
+              s.id === sessionId 
+                ? { ...s, title, updatedAt: new Date() }
+                : s
+            ),
+            currentSession: state.currentSession?.id === sessionId 
+              ? { ...state.currentSession, title, updatedAt: new Date() }
+              : state.currentSession,
             isLoading: false
           }));
         } catch (error) {
@@ -413,32 +432,6 @@ export const useChatStore = create<ChatState>()(
         }
       },
 
-      // 清空会话
-      clearSession: async (sessionId: string) => {
-        try {
-          set({ isLoading: true, error: null });
-
-          await chatHistoryService.clearSession(sessionId);
-
-          set(state => ({
-            sessions: state.sessions.map(s =>
-              s.id === sessionId
-                ? { ...s, messages: [], messageCount: 0, totalTokens: 0, lastMessageAt: undefined }
-                : s
-            ),
-            currentSession: state.currentSession?.id === sessionId
-              ? { ...state.currentSession, messages: [], messageCount: 0, totalTokens: 0, lastMessageAt: undefined }
-              : state.currentSession,
-            isLoading: false
-          }));
-        } catch (error) {
-          console.error('清空会话失败:', error);
-          set({
-            error: error instanceof Error ? error.message : '清空会话失败',
-            isLoading: false
-          });
-        }
-      },
 
       // 清除错误
       clearError: () => {

@@ -69,7 +69,7 @@ const DataDetailPage: React.FC = () => {
 
   useEffect(() => {
     if (id && allData.length > 0) {
-      const item = allData.find(item => item.id === id);
+      const item = allData.find(item => String(item.id) === id);
       if (item) {
         setData(item);
         // 增加浏览次数
@@ -241,18 +241,18 @@ const DataDetailPage: React.FC = () => {
                 </Title>
                 <Card size="small" style={{ background: '#f8f9fa' }}>
                   <Descriptions column={2} size="small">
-                    <Descriptions.Item label="省份">{data.location.province}</Descriptions.Item>
-                    <Descriptions.Item label="城市">{data.location.city}</Descriptions.Item>
-                    {data.location.district && (
-                      <Descriptions.Item label="区县">{data.location.district}</Descriptions.Item>
+                    <Descriptions.Item label="省份">{data.province}</Descriptions.Item>
+                    <Descriptions.Item label="城市">{data.city}</Descriptions.Item>
+                    {data.district && (
+                      <Descriptions.Item label="区县">{data.district}</Descriptions.Item>
                     )}
-                    {data.location.address && (
-                      <Descriptions.Item label="详细地址" span={2}>{data.location.address}</Descriptions.Item>
+                    {data.address && (
+                      <Descriptions.Item label="详细地址" span={2}>{data.address}</Descriptions.Item>
                     )}
-                    {data.location.coordinates && (
+                    {data.latitude && data.longitude && (
                       <>
-                        <Descriptions.Item label="纬度">{data.location.coordinates.latitude}</Descriptions.Item>
-                        <Descriptions.Item label="经度">{data.location.coordinates.longitude}</Descriptions.Item>
+                        <Descriptions.Item label="纬度">{data.latitude}</Descriptions.Item>
+                        <Descriptions.Item label="经度">{data.longitude}</Descriptions.Item>
                       </>
                     )}
                   </Descriptions>
@@ -285,7 +285,7 @@ const DataDetailPage: React.FC = () => {
                     下载资料
                   </Button>
                   <Text type="secondary" style={{ fontSize: 12, textAlign: 'center', display: 'block' }}>
-                    {data.downloadUrl ? `文件大小: ${formatFileSize(data.fileSize)}` : '暂无下载链接'}
+                    {data.downloadUrl ? `文件大小: ${data.fileSize || '未知'}` : '暂无下载链接'}
                   </Text>
                 </Space>
               </Card>
@@ -303,7 +303,7 @@ const DataDetailPage: React.FC = () => {
                   <Descriptions.Item 
                     label={<><CalendarOutlined style={{ marginRight: 4 }} />发布日期</>}
                   >
-                    {formatDate(data.publishDate)}
+                    {formatDate(data.publishDate || data.createdAt)}
                   </Descriptions.Item>
                   <Descriptions.Item 
                     label={<><EyeOutlined style={{ marginRight: 4 }} />浏览次数</>}

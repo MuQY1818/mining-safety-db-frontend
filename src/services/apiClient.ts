@@ -61,10 +61,10 @@ export const apiClient = createApiClient();
 
 // 通用API响应处理
 export const handleApiResponse = <T>(response: any): T => {
-  if (response.data.code === 200) {
+  if (response.data.code === 0) {
     return response.data.data;
   } else {
-    throw new Error(response.data.message || 'API请求失败');
+    throw new Error(response.data.msg || 'API请求失败');
   }
 };
 

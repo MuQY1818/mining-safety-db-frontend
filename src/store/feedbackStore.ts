@@ -97,7 +97,18 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      await apiService.submitFeedback(data);
+      // Transform data to match backend API format
+      const apiData = {
+        type: data.type,
+        title: data.title,
+        content: data.content || data.description || '',
+        contactInfo: data.contactInfo || 
+          [data.userName, data.userEmail, data.userContact]
+            .filter(Boolean)
+            .join(' | ')
+      };
+      
+      await apiService.submitFeedback(apiData);
       
       // Refresh feedbacks after submission
       await get().fetchFeedbacks();

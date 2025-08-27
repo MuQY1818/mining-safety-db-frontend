@@ -49,14 +49,9 @@ interface DashboardStats {
   };
 }
 
-// 文件上传响应接口
+// 文件上传响应接口 - 匹配后端UploadFileResponse
 interface UploadResponse {
-  fileId: string;
-  fileName: string;
-  fileSize: number;
-  fileType: string;
   url: string;
-  thumbnailUrl?: string;
 }
 
 class ApiService {
@@ -99,8 +94,10 @@ class ApiService {
     this.client.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
         const { data } = response;
-        // 检查业务逻辑错误 (code !== 200 表示失败)
-        if (data.code !== 200 && data.code !== 0) {
+        // 检查业务逻辑错误 - 兼容两种后端响应格式
+        // 成功: code === 0 或 code === 200
+        // 失败: code !== 0 && code !== 200
+        if (data.code !== 0 && data.code !== 200) {
           const error = new Error(data.msg || '请求失败');
           return Promise.reject(error);
         }
@@ -108,9 +105,12 @@ class ApiService {
       },
       (error) => {
         if (error.response?.status === 401) {
-          // Token过期，清除本地存储并跳转到登录页
-          localStorage.removeItem('auth_token');
-          window.location.href = '/login';
+          // 避免在登录页面重复重定向
+          if (window.location.pathname !== '/login') {
+            console.log('检测到401错误，清除认证信息并重定向到登录页');
+            localStorage.removeItem('auth_token');
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(error);
       }
@@ -126,7 +126,7 @@ class ApiService {
     return response.data.data;
   }
 
-  async getSafetyDataById(id: string): Promise<SafetyData> {
+  async getSafetyDataById(id: number): Promise<SafetyData> {
     const response = await this.client.get<ApiResponse<SafetyData>>(
       '/safety-data',
       { params: { safetyDataId: id } }
@@ -139,12 +139,11 @@ class ApiService {
     return response.data.data;
   }
 
-  async updateSafetyData(id: string, data: Partial<SafetyData>): Promise<SafetyData> {
-    const response = await this.client.put<ApiResponse<SafetyData>>('/safety-data', data);
-    return response.data.data;
+  async updateSafetyData(data: SafetyData): Promise<void> {
+    await this.client.put('/safety-data', data);
   }
 
-  async deleteSafetyData(id: string): Promise<void> {
+  async deleteSafetyData(id: number): Promise<void> {
     await this.client.delete('/safety-data', {
       params: { safetyDataId: id }
     });
@@ -167,50 +166,22 @@ class ApiService {
     return response.data.data;
   }
 
-  // 反馈相关API
-  async submitFeedback(feedback: any): Promise<void> {
-    // 转换前端数据结构为后端API契约格式
-    const backendFeedback = {
-      type: this.mapFeedbackType(feedback.type),
-      title: feedback.title,
-      content: feedback.description, // description -> content
-      contactInfo: this.buildContactInfo(feedback) // 合并联系信息
-    };
-
-    await this.client.post('/feedback', backendFeedback);
+  // 反馈相关API - 直接匹配后端SubmitFeedbackRequest格式
+  async submitFeedback(feedback: {
+    type: 'bug' | 'feature' | 'improvement' | 'other';
+    title: string;
+    content: string;
+    contactInfo?: string;
+  }): Promise<void> {
+    await this.client.post('/feedback', feedback);
   }
 
-  // 映射前端反馈类型到后端类型
-  private mapFeedbackType(frontendType: string): string {
-    const typeMapping: Record<string, string> = {
-      'bug_report': 'bug',
-      'feature_request': 'feature', 
-      'content_suggestion': 'improvement',
-      'ui_improvement': 'improvement',
-      'performance': 'improvement',
-      'other': 'other'
-    };
-    return typeMapping[frontendType] || 'other';
-  }
-
-  // 构建联系信息字符串
-  private buildContactInfo(feedback: any): string {
-    const contactParts: string[] = [];
-    
-    if (feedback.userName) {
-      contactParts.push(`姓名: ${feedback.userName}`);
-    }
-    if (feedback.userEmail) {
-      contactParts.push(`邮箱: ${feedback.userEmail}`);
-    }
-    if (feedback.userContact) {
-      contactParts.push(`联系方式: ${feedback.userContact}`);
-    }
-    
-    return contactParts.join(' | ') || '';
-  }
-
-  async getFeedbackList(query?: any): Promise<PaginatedResponse<any>> {
+  async getFeedbackList(query?: {
+    page: number;
+    pageSize: number;
+    status: 'all' | 'pending' | 'resolved' | 'closed';
+    order: 'desc' | 'asc';
+  }): Promise<PaginatedResponse<any>> {
     const response = await this.client.get<ApiResponse<PaginatedResponse<any>>>(
       '/feedback/list',
       { params: query }
