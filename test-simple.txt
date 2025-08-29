@@ -1,3 +1,0 @@
-This is a test file with simple English filename.
-Testing file upload functionality.
-No Chinese characters or special symbols in filename.

@@ -45,9 +45,13 @@
       "Bash(npm install:*)",
       "Read(/E:\\Code\\Project\\mining-db-server\\src\\main\\java\\cn\\mining\\server\\controller/**)",
       "Bash(powershell:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "E:\\E\\Code\\Project\\Mining_DB\\Society-Practice-Database-fronted"
+    ]
   }
 }

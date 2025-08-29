@@ -1,64 +1,251 @@
-# Docker Compose - 开发环境覆盖配置
-# 用于本地开发的额外配置，自动与docker-compose.yml合并
+# 矿区安全数据库前端 - 开发环境重写配置
+# 这个文件会自动与docker-compose.yml合并，提供开发环境特定的配置
 
 version: '3.8'
 
 services:
+  # ================================
+  # 前端服务开发环境重写
+  # ================================
   mining-frontend:
-    # 开发环境端口映射
+    # 开发环境构建配置
+    build:
+      args:
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:8080/api}
+        REACT_APP_SILICONFLOW_API_KEY: ${REACT_APP_SILICONFLOW_API_KEY:-}
+    
+    # 开发环境端口映射（使用React开发服务器）
     ports:
-      - "3000:80"
+      - "${DEV_PORT:-3000}:3000"
     
     # 开发环境变量
     environment:
       - NODE_ENV=development
-      - DEBUG=true
+      - TZ=Asia/Shanghai
+      - CHOKIDAR_USEPOLLING=true    # 文件监听优化
+      - WATCHPACK_POLLING=true      # Webpack监听优化
+      - FAST_REFRESH=true           # React快速刷新
+      - PORT=3000
+      - BROWSER=none                # 不自动打开浏览器
+      - GENERATE_SOURCEMAP=true     # 开发环境生成源映射
     
-    # 开发时的卷挂载 (热更新支持)
+    # 开发环境卷挂载 - 支持热重载
     volumes:
-      # 源码映射 (如需要热更新，取消注释)
-      # - ./src:/app/src:ro
-      # - ./public:/app/public:ro
-      
-      # 配置文件映射
+      # 源代码热重载
+      - .:/app
+      - /app/node_modules           # 避免node_modules被覆盖
+      - /app/build                  # 避免build目录被覆盖
+      # 缓存目录
+      - dev_node_modules:/app/.npm
+      - dev_build_cache:/app/build
+      # 日志和配置挂载
+      - ./logs/dev:/app/logs
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      
-      # 日志映射到本地
-      - ./logs/nginx:/var/log/nginx
     
-    # 开发环境资源限制更宽松
+    # 开发环境启动命令 - 使用开发服务器
+    command: ["npm", "start"]
+    
+    # 开发环境健康检查调整
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 60s                 # 降低检查频率
+      timeout: 15s
+      retries: 3
+      start_period: 120s            # 给更多启动时间
+    
+    # 开发环境资源限制调整
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 1G
+          cpus: '2.0'               # 开发环境允许更多CPU
+          memory: 1G                # 开发环境允许更多内存
         reservations:
           cpus: '0.5'
           memory: 256M
 
+  # ================================
+  # Redis开发环境配置
+  # ================================
   mining-redis:
-    # 开发环境暴露Redis端口
+    # 开发环境暴露端口
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     
-    # 开发环境Redis配置
+    # 开发环境Redis配置 - 更宽松的设置
     command: >
       redis-server
-      --appendonly yes
-      --save 900 1
-      --save 300 10
-      --save 60 10000
+      --appendonly no
+      --save ""
+      --maxmemory 128mb
+      --maxmemory-policy volatile-lru
+      --timeout 0
+      --databases 16
+    
+    # 开发环境数据卷
+    volumes:
+      - redis_dev_data:/data
+      - ./docker/redis-dev.conf:/usr/local/etc/redis/redis.conf:ro
 
-# 开发环境额外服务
+  # ================================
+  # 开发专用服务
+  # ================================
+  
+  # 开发文档服务器
+  dev-docs:
+    image: nginx:alpine
+    container_name: mining-dev-docs
+    
+    ports:
+      - "${DOCS_PORT:-8080}:80"
+    
+    volumes:
+      - ./docs:/usr/share/nginx/html:ro
+      - ./docker/dev-docs.conf:/etc/nginx/conf.d/default.conf:ro
+    
+    networks:
+      - mining-network
+    
+    profiles:
+      - docs
+    
+    labels:
+      - "project=mining-database"
+      - "service=dev-docs"
+      - "environment=development"
+
+  # 测试运行器服务
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    image: mining-frontend:test
+    container_name: mining-test-runner
+    
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - test_coverage:/app/coverage
+      - test_results:/app/test-results
+    
+    environment:
+      - NODE_ENV=test
+      - CI=true
+      - TZ=Asia/Shanghai
+      - FORCE_COLOR=1
+    
+    networks:
+      - mining-network
+    
+    profiles:
+      - testing
+    
+    command: ["npm", "test", "--", "--watchAll=false", "--coverage", "--testTimeout=30000"]
+    
+    labels:
+      - "project=mining-database"
+      - "service=test-runner"
+      - "environment=development"
+
+  # E2E测试服务
+  e2e-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    image: mining-frontend:e2e
+    container_name: mining-e2e-runner
+    
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - playwright_cache:/root/.cache/ms-playwright
+      - test_results:/app/test-results
+    
+    environment:
+      - NODE_ENV=test
+      - CI=true
+      - TZ=Asia/Shanghai
+      - PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+    
+    networks:
+      - mining-network
+    
+    depends_on:
+      - mining-frontend
+    
+    profiles:
+      - e2e
+    
+    command: ["npx", "playwright", "test", "--reporter=html"]
+    
+    labels:
+      - "project=mining-database"
+      - "service=e2e-runner"
+      - "environment=development"
+
 # ================================
-# 开发工具容器 (可选)
+# 开发环境专用卷
 # ================================
-# nginx-dev:
-#   image: nginx:alpine
-#   container_name: mining-dev-proxy
-#   ports:
-#     - "8080:80"
-#   volumes:
-#     - ./docker/dev-nginx.conf:/etc/nginx/conf.d/default.conf
-#   networks:
-#     - mining-network
+volumes:
+  # 开发环境缓存卷
+  dev_node_modules:
+    driver: local
+    name: mining-dev-node-modules
+    
+  dev_build_cache:
+    driver: local
+    name: mining-dev-build-cache
+    
+  test_coverage:
+    driver: local
+    name: mining-test-coverage
+    
+  test_results:
+    driver: local
+    name: mining-test-results
+    
+  playwright_cache:
+    driver: local
+    name: mining-playwright-cache
+    
+  redis_dev_data:
+    driver: local
+    name: mining-redis-dev-data
+
+# ================================
+# 开发环境使用说明
+# ================================
+#
+# 基本开发环境启动:
+#   docker-compose up
+#
+# 包含文档服务:
+#   docker-compose --profile docs up
+#
+# 包含测试服务:
+#   docker-compose --profile testing up
+#
+# 包含E2E测试:
+#   docker-compose --profile e2e up
+#
+# 仅启动前端服务:
+#   docker-compose up mining-frontend
+#
+# 查看实时日志:
+#   docker-compose logs -f mining-frontend
+#
+# 重新构建镜像:
+#   docker-compose build --no-cache
+#
+# 清理开发环境:
+#   docker-compose down -v
+#   docker system prune -f
+#
+# 环境变量文件: .env 或 .env.development
+# 示例配置:
+# DEV_PORT=3000
+# DOCS_PORT=8080  
+# REDIS_PORT=6379
+# REACT_APP_API_BASE_URL=http://localhost:8080/api
+# REACT_APP_SILICONFLOW_API_KEY=your-dev-key

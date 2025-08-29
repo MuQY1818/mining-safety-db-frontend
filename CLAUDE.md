@@ -129,9 +129,33 @@ src/
 
 ## 11. 构建与发布
 
-- **前端**：`npm run build`
+### 本地构建
+- **前端构建**：`npm run build`
 - **产物目录**：`build/` 静态文件
-- **版本与变更**：使用本文件 **16. Changelog**
+- **类型检查**：`tsc --noEmit`
+
+### Docker镜像部署
+- **本地构建推送**：`./scripts/build-and-push.sh [tag]`
+- **服务器更新**：`./scripts/server-update.sh [image_tag]`
+- **CI/CD自动化**：推送代码到main分支自动触发镜像构建和推送
+- **镜像仓库**：GitHub Container Registry (`ghcr.io`)
+
+### 部署模式
+- **滚动更新**：零停机时间更新（默认）
+- **蓝绿部署**：`--blue-green` 选项支持
+- **自动回滚**：健康检查失败时自动回滚到上一版本
+- **版本管理**：支持语义化版本标签和时间戳标签
+
+### 生产环境配置
+- **环境变量**：`.env.production` （基于 `.env.production.example` 创建）
+- **监控集成**：Prometheus + Grafana 可选配置
+- **日志收集**：Fluent Bit 日志聚合
+- **健康检查**：自动化健康检查和服务重启
+
+### 版本与变更
+- **版本策略**：Git标签 + Docker镜像标签
+- **变更记录**：本文件 **16. Changelog**
+- **自动化**：GitHub Actions完整CI/CD流程
 
 ## 12. AI服务与集成规范
 
@@ -149,13 +173,23 @@ src/
 
 ## 14. 常用脚本/命令（统一入口）
 
-> 以下为项目常用命令：
-
-- 开发：`npm start`
-- 构建：`npm run build`
-- 测试：`npm test`
+### 本地开发
+- 开发服务：`npm start`
+- 构建应用：`npm run build`
 - 代码检查：`npm run lint`
 - 类型检查：`tsc --noEmit`
+
+### Docker部署
+- 本地构建推送：`./scripts/build-and-push.sh [tag]`
+- 服务器更新：`./scripts/server-update.sh [image_tag]`
+- 查看部署状态：`./scripts/server-update.sh --status`
+- 回滚上一版本：`./scripts/server-update.sh --rollback`
+
+### 生产环境管理
+- 启动服务：`docker-compose -f docker-compose.prod.yml up -d`
+- 停止服务：`docker-compose -f docker-compose.prod.yml down`
+- 查看日志：`docker-compose -f docker-compose.prod.yml logs -f`
+- 健康检查：`curl http://localhost/health`
 
 ## 15. 例外与临时约定
 
@@ -233,3 +267,13 @@ src/
 - **状态持久化**: 刷新页面保持登录状态和用户数据
 - **AI流式响应**: 实时显示AI回复内容
 - **多用户隔离**: 不同用户登录时数据完全隔离
+
+## 16. Changelog（倒序追加，**仅在此节插入新行**）
+
+> 由助手自动在行首插入当天日期（通过系统命令获取），格式如下：
+
+- `<YYYY-MM-DD>`：<改动摘要>；**影响面**：<受影响模块>；**回滚**：<回滚方式>；**相关**：<文件/PR/Issue>
+
+- 2025-08-29：建立完整的Docker镜像CI/CD部署方案；**影响面**：新增GitHub Actions自动化构建推送、本地构建脚本、服务器更新脚本、生产环境配置模板，实现代码push→镜像构建→服务器拉取→滚动更新的完整流程；**回滚**：删除.github/workflows/、scripts/build-and-push.sh、scripts/server-update.sh、.env.production.example文件；**相关**：CI/CD工作流、Docker镜像仓库集成、蓝绿部署支持
+- 2025-08-29：清理所有测试文件回到纯净生产代码状态；**影响面**：删除src测试文件6个、tests目录、playwright.config.ts、测试脚本2个、调试文件9个，项目专注于生产功能；**回滚**：从git历史恢复测试文件和配置；**相关**：*.test.*、tests/、playwright.config.ts、scripts/run-all-tests.sh、debug-python-upload.py等
+- 2025-08-29：修复UI核心问题-表单验证和数据加载；**影响面**：DataForm组件DatePicker验证、Dashboard首次访问数据加载、认证状态持久化、数据存储错误处理；**回滚**：git revert 667db04；**相关**：DataForm.tsx,Dashboard.tsx,authStore.ts,safetyDataStore.ts

@@ -1,0 +1,228 @@
+# 矿区安全数据库前端 - CI/CD自动化部署工作流
+# 
+# 工作流程：
+# 1. 代码推送到main分支 → 触发构建
+# 2. 构建React应用和Docker镜像
+# 3. 推送镜像到GitHub Container Registry
+# 4. 通知服务器自动拉取最新镜像
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package*.json'
+      - 'Dockerfile'
+      - 'docker/**'
+  pull_request:
+    branches: [ main, master ]
+  
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: mining-safety-db-frontend
+
+jobs:
+  # ================================
+  # 构建和测试阶段
+  # ================================
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 检出代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: 📦 设置Node.js环境
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: 🔧 安装依赖
+      run: |
+        npm ci --no-audit --no-fund
+    
+    - name: 🧹 代码规范检查
+      run: |
+        npm run lint
+    
+    - name: 📊 TypeScript类型检查
+      run: |
+        npx tsc --noEmit
+    
+    - name: 🏗️ 构建应用
+      run: |
+        npm run build
+      env:
+        REACT_APP_API_BASE_URL: https://mining-backend.ziven.site/api
+        REACT_APP_SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+        CI: false
+    
+    - name: 📁 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-files
+        path: build/
+        retention-days: 7
+
+  # ================================
+  # Docker镜像构建和推送
+  # ================================
+  docker-build-push:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+    - name: 📥 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 🔧 设置Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: 🔐 登录GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: 🏷️ 提取镜像元数据
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+        tags: |
+          # 分支名标签
+          type=ref,event=branch
+          # PR标签
+          type=ref,event=pr
+          # 语义化版本标签
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          # 最新标签（仅限main分支）
+          type=raw,value=latest,enable={{is_default_branch}}
+          # 时间戳标签
+          type=raw,value={{date 'YYYYMMDD-HHmmss' tz='Asia/Shanghai'}}
+        labels: |
+          org.opencontainers.image.title=Mining Safety DB Frontend
+          org.opencontainers.image.description=矿区语言安全数据库前端应用
+          org.opencontainers.image.vendor=Mining Safety DB Team
+    
+    - name: 🏗️ 构建并推送Docker镜像
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          REACT_APP_API_BASE_URL=https://mining-backend.ziven.site/api
+          REACT_APP_SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}
+          BUILD_VERSION=${{ github.sha }}
+          BUILD_DATE=${{ steps.meta.outputs.labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ github.sha }}
+    
+    - name: 📝 镜像构建摘要
+      run: |
+        echo "### 🐳 Docker镜像构建成功" >> $GITHUB_STEP_SUMMARY
+        echo "**镜像标签**: \`${{ steps.meta.outputs.tags }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**镜像摘要**: \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**构建时间**: $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+        echo "**支持平台**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+
+  # ================================
+  # 生产环境部署通知
+  # ================================
+  notify-deployment:
+    needs: docker-build-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: 📤 发送部署通知
+      uses: peter-evans/repository-dispatch@v3
+      with:
+        token: ${{ secrets.DEPLOY_TOKEN || secrets.GITHUB_TOKEN }}
+        repository: ${{ github.repository }}
+        event-type: deployment-ready
+        client-payload: |
+          {
+            "image_tag": "${{ needs.docker-build-push.outputs.image-tag }}",
+            "image_digest": "${{ needs.docker-build-push.outputs.image-digest }}",
+            "git_sha": "${{ github.sha }}",
+            "environment": "production"
+          }
+    
+    - name: 📋 部署信息摘要
+      run: |
+        echo "### 🚀 部署通知已发送" >> $GITHUB_STEP_SUMMARY
+        echo "**环境**: 生产环境" >> $GITHUB_STEP_SUMMARY
+        echo "**镜像**: \`${{ needs.docker-build-push.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**提交**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "服务器管理员可使用以下命令更新：" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "curl -sL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/server-update.sh | bash -s -- ${{ needs.docker-build-push.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # ================================
+  # 安全扫描 (可选)
+  # ================================
+  security-scan:
+    needs: docker-build-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+    - name: 🔍 运行Trivy漏洞扫描
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ needs.docker-build-push.outputs.image-tag }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: 📊 上传扫描结果到GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: 📝 安全扫描摘要
+      run: |
+        echo "### 🔒 安全扫描完成" >> $GITHUB_STEP_SUMMARY
+        echo "扫描结果已上传到GitHub Security标签页" >> $GITHUB_STEP_SUMMARY
