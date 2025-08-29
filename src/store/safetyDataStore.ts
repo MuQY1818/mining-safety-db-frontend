@@ -1,6 +1,6 @@
 // 安全数据状态管理
 import { create } from 'zustand';
-import { SafetyData, SafetyLevel, MineType, SafetyCategory } from '../types/safety';
+import { SafetyData, SafetyLevel, MineType, SafetyCategory, UploadSafetyDataRequest } from '../types/safety';
 import { apiService } from '../services/api';
 
 interface SafetyDataState {
@@ -33,7 +33,7 @@ interface SafetyDataState {
   // 数据管理操作
   fetchData: (params?: any) => Promise<void>;
   fetchDataById: (id: string) => Promise<SafetyData | null>;
-  addData: (newData: Omit<SafetyData, 'id'>) => Promise<void>;
+  addData: (newData: UploadSafetyDataRequest | Omit<SafetyData, 'id'>) => Promise<void>;
   updateData: (id: string, updatedData: Partial<SafetyData>) => Promise<void>;
   deleteData: (id: string) => Promise<void>;
 }
@@ -75,7 +75,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     try {
       const { filters, pagination, searchTerm } = get();
       
-      const response = await apiService.getSafetyData({
+      const queryParams = {
         page: pagination.current,
         pageSize: pagination.pageSize,
         search: searchTerm || undefined,
@@ -83,6 +83,14 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
         mineType: filters.mineType,
         category: filters.category,
         ...params
+      };
+      
+      console.log('🔄 获取安全资料数据，查询参数:', queryParams);
+      const response = await apiService.getSafetyData(queryParams);
+      console.log('✅ 获取到安全资料数据:', {
+        total: response.total,
+        listLength: response.list?.length || 0,
+        currentPage: response.page
       });
       
       set({
@@ -99,6 +107,7 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
       get().applyFilters();
       
     } catch (error) {
+      console.error('❌ 获取安全资料数据失败:', error);
       set({
         error: error instanceof Error ? error.message : '获取安全资料失败',
         loading: false
@@ -128,16 +137,23 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
+      console.log('🔄 开始添加安全资料:', newData);
       await apiService.createSafetyData(newData);
+      console.log('✅ 安全资料添加成功，开始刷新数据');
       
       // 添加后刷新数据
       await get().fetchData();
+      console.log('✅ 数据刷新完成');
+      
+      set({ loading: false });
       
     } catch (error) {
+      console.error('❌ 添加安全资料失败:', error);
       set({
         error: error instanceof Error ? error.message : '添加安全资料失败',
         loading: false
       });
+      throw error; // 重新抛出错误让上层处理
     }
   },
 

@@ -102,21 +102,6 @@ export const databaseApi = {
     }
   },
 
-  // 文件上传
-  uploadFile: async (file: File): Promise<{ url: string }> => {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await apiClient.post('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      return handleApiResponse<{ url: string }>(response);
-    } catch (error) {
-      return handleApiError(error);
-    }
-  }
 };
 
 // 搜索和筛选API

@@ -16,6 +16,7 @@
     "antd": "^5.26.7",
     "axios": "^1.11.0",
     "framer-motion": "^12.23.12",
+    "http-proxy-middleware": "^2.0.9",
     "lucide-react": "^0.536.0",
     "playwright": "^1.55.0",
     "react": "^19.1.1",
@@ -54,7 +55,7 @@
   },
   "jest": {
     "transformIgnorePatterns": [
-      "node_modules/(?!(axios|react-markdown|@tanstack|devlop)/)"
+      "node_modules/(?!(axios|react-markdown|@tanstack|devlop|hast-.*|unist-.*|mdast-.*|micromark.*|unified|remark.*|rehype.*|vfile|bail|trough|extend|comma-separated-tokens|space-separated-tokens|property-information|web-namespaces|ccount|escape-string-regexp|is-plain-obj)/)"
     ]
   },
   "devDependencies": {

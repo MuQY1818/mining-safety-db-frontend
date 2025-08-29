@@ -1,0 +1,154 @@
+# Docker Compose - 生产环境配置
+# 用于生产部署的安全和性能优化配置
+
+version: '3.8'
+
+services:
+  mining-frontend:
+    # 生产环境端口 (通常使用反向代理)
+    ports:
+      - "80:80"
+    
+    # 生产环境变量
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Shanghai
+    
+    # 移除开发时的卷挂载，仅保留必要的
+    volumes:
+      # 日志持久化
+      - frontend-logs:/var/log/nginx
+      # SSL证书 (如果直接在容器中处理HTTPS)
+      # - ssl-certs:/etc/nginx/ssl:ro
+    
+    # 生产环境资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+      
+      # 副本数量 (用于负载均衡)
+      replicas: 2
+      
+      # 更新配置
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+      
+      # 重启策略
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    
+    # 生产环境健康检查更频繁
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+    # 安全设置
+    user: "101:101"  # nginx用户
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    
+    # 生产环境标签
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend-prod.rule=Host(`mining.production.com`)"
+      - "traefik.http.routers.frontend-prod.tls=true"
+      - "traefik.http.routers.frontend-prod.tls.certresolver=letsencrypt"
+
+  mining-redis:
+    # 生产Redis配置
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --timeout 300
+      --tcp-keepalive 300
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    
+    # 生产环境资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    
+    # 安全设置
+    user: "999:999"  # redis用户
+    
+    # 只暴露内部网络端口，不对外
+    ports: []
+
+# ================================
+# 生产环境监控服务
+# ================================
+services:
+  # Prometheus监控 (可选)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mining-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - mining-network
+    restart: unless-stopped
+  
+  # Grafana可视化 (可选)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mining-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - mining-network
+    restart: unless-stopped
+
+# ================================
+# 生产环境卷配置
+# ================================
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  
+# ================================
+# 生产环境网络安全配置
+# ================================
+networks:
+  mining-network:
+    driver: overlay
+    attachable: true
+    ipam:
+      config:
+        - subnet: 10.0.9.0/24

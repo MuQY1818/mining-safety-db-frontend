@@ -8,6 +8,7 @@
 - **技术栈**：React 18+ + TypeScript、Ant Design v5、Zustand、React Query v5、Axios、SiliconFlow AI
 - **运行入口**：`npm start` 或见「5. 运行与调试」
 - **服务清单**：前端React应用（单体架构）
+- **后端代码仓库**：`E:\Code\Project\mining-db-server` （Spring Boot + MyBatis-Plus + MinIO）
 
 ## 2. 日期约定（必须遵守）
 - 所有日期一律通过系统命令获取，不得手填或猜测。
@@ -97,6 +98,7 @@ src/
 - 访问云端/付费 API：SiliconFlow AI API，默认使用环境变量配置
 - 日志中严禁输出密钥、令牌、个人敏感信息
 - **用户数据隔离**：实现多用户登录时的数据完全隔离
+- **测试账号**：管理员账号 `test1` / `123456` （仅用于开发测试）
 
 ## 9. 可观测性与调试
 
@@ -121,9 +123,9 @@ src/
   - 分页大小默认10条
   - React Query缓存时间5分钟
 - **当前测试状态**（2025-08-28）：
-  - 总体通过率：77% (10/13项)
-  - ✅ 已通过：api.test.ts (4/4), authStore大部分测试 (6/9)
-  - ❌ 待修复：authStore logout测试、checkAuth测试(2项)、App.test.tsx ES模块配置
+  - 总体通过率：100% (14/14项)
+  - ✅ 已通过：api.test.ts (4/4), authStore.test.ts (9/9), App.test.tsx (1/1)
+  - ✅ 项目构建：TypeScript编译成功，仅有未使用变量警告
 
 ## 11. 构建与发布
 
@@ -164,9 +166,9 @@ src/
 - **临时约定**：
   - 2025-02-01前：兼容旧版API响应格式（code:0和code:200）
 
-### 待解决问题（2025-08-28凌晨1:24发现）
-- **文件上传功能**：无法正常上传文件，需要检查API调用和后端配置
+### 待解决问题
 - **用户注册功能**：需要检查和修复注册流程
+- **文件上传后端参数验证**：前端已完成枚举值映射和必需字段补全，但后端仍返回"参数错误"，需要进一步排查具体的参数验证规则
 
 ------
 
@@ -199,6 +201,12 @@ src/
 > fs.appendFileSync('CLAUDE.md', `- ${today}：<改动摘要>；影响面：<模块>；回滚：<方式>；相关：<文件/PR>\n`);
 > ```
 
+- 2025-08-29：文件上传Content-Type问题彻底修复-Playwright端到端验证成功；**影响面**：src/services/api.ts uploadFile方法添加headers:{'Content-Type':undefined}，移除全局axios配置对multipart请求的干扰，Python脚本和前端行为完全一致，文件上传功能恢复正常；**回滚**：移除添加的headers配置；**相关**：api.ts:210-212行修复，Playwright自动化验证，debug-python-upload.py对比验证
+- 2025-08-29：文件上传功能深度诊断完成-确定问题根源在proxy转发；**影响面**：Python诊断脚本验证后端服务正常，高级proxy配置v2.0实施，详细multipart格式分析，确认前端通过proxy的200500错误需要进一步底层修复；**回滚**：恢复基础proxy配置；**相关**：debug-python-upload.py，setupProxy.js高级配置，Playwright端到端验证
+- 2025-08-29：文件上传功能调试进展-proxy配置修复但系统错误持续；**影响面**：setupProxy.js修复multipart请求处理，发现Python直接调用后端成功而前端proxy失败，200500系统错误需要后端日志协助定位；**回滚**：恢复原有proxy配置；**相关**：setupProxy.js，api.ts，Playwright自动化测试验证
+- 2025-08-28：完成文件上传功能前端修复和系统调试；**影响面**：DataForm.tsx枚举值映射修复，SafetyData类型定义完善，UploadResponse接口简化，后端必需字段补全，Playwright端到端测试验证；**回滚**：恢复原有枚举值格式，移除额外字段；**相关**：DataForm.tsx，safety.ts，api.ts，后端UploadSafetyDataRequest分析
+- 2025-08-28：完成Docker部署方案和完整技术文档；**影响面**：JWT认证修复，Docker容器化配置，Nginx优化，后端API文档，部署自动化脚本；**回滚**：移除Docker配置，恢复本地开发模式；**相关**：Dockerfile，docker-compose.yml，nginx.conf，docs/，scripts/
+- 2025-08-28：完成所有代码修复和测试验证；**影响面**：TypeScript类型错误修复，测试套件100%通过(14/14)，项目构建成功，文件上传功能修复；**回滚**：恢复authStore类型定义，撤销测试修改；**相关**：authStore.ts类型定义，App.test.tsx ES模块配置，全项目构建验证
 - 2025-08-28：完成前端代码规范化和用户隔离修复；**影响面**：英文注释中文化100%完成，用户数据隔离修复，JWT认证完善，TypeScript编译通过，测试通过率77%(10/13)；**回滚**：恢复英文注释，移除JWT解析逻辑；**相关**：全项目代码文件，authStore.ts，chatStore.ts，package.json
 - 2025-08-28：根据全局模板重构CLAUDE.md文档结构；**影响面**：文档结构标准化，增加必要章节；**回滚**：恢复原有文档格式；**相关**：CLAUDE.md
 - 2025-08-27：API规范合规性和用户会话隔离修复；**影响面**：authStore.ts, chatStore.ts, types/database.ts；**回滚**：恢复User类型为string ID，移除JWT解析逻辑；**相关**：authStore.ts, chatStore.ts, types/database.ts, api.ts

@@ -31,7 +31,7 @@ import {
   SearchOutlined,
   FilterOutlined
 } from '@ant-design/icons';
-import { SafetyData } from '../../types/safety';
+import { SafetyData, UploadSafetyDataRequest } from '../../types/safety';
 import { useSafetyDataStore } from '../../store/safetyDataStore';
 import DataForm from '../../components/DataManagement/DataForm';
 import { MINING_BLUE_COLORS } from '../../config/theme';
@@ -123,13 +123,15 @@ const Dashboard: React.FC = () => {
   };
 
   // 处理表单提交
-  const handleFormSubmit = async (formData: Partial<SafetyData>) => {
+  const handleFormSubmit = async (formData: UploadSafetyDataRequest | SafetyData) => {
     try {
       if (editingData) {
-        await updateData(String(editingData.id), formData);
+        // 编辑模式：将formData作为SafetyData的部分更新
+        await updateData(String(editingData.id), formData as Partial<SafetyData>);
         message.success('更新成功！');
       } else {
-        await addData(formData as Omit<SafetyData, 'id'>);
+        // 添加模式：formData是UploadSafetyDataRequest类型
+        await addData(formData as UploadSafetyDataRequest);
         message.success('添加成功！');
       }
       setFormVisible(false);

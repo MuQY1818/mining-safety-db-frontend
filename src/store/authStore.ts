@@ -29,7 +29,8 @@ const parseJwt = (token: string): any => {
 // 从JWT token中获取用户ID
 const getUserIdFromToken = (token: string): number | null => {
   const payload = parseJwt(token);
-  return payload?.userId || payload?.id || payload?.sub ? parseInt(payload.userId || payload.id || payload.sub) : null;
+  // 后端JWT使用 "user_id" 字段名 (对应 JwtUtils.USER_ID_KEY)
+  return payload?.user_id ? parseInt(payload.user_id) : null;
 };
 
 interface AuthState {
@@ -47,10 +48,10 @@ interface AuthState {
   checkAuth: () => Promise<void>;
   clearUserData: (userId?: number) => void;
   // 内部方法（用于测试）
-  setUser: (user: User) => void;
-  setToken: (token: string) => void;
+  setUser: (user: User | null) => void;
+  setToken: (token: string | null) => void;
   setAuthenticated: (authenticated: boolean) => void;
-  setError: (error: string) => void;
+  setError: (error: string | null) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -84,15 +85,16 @@ export const useAuthStore = create<AuthState>()(
             throw new Error('无法从token中获取用户ID');
           }
 
-          // 使用登录响应中的用户信息，补充必要字段
+          // 使用token获取用户详细信息
+          const profile = await apiService.getProfile();
           const user: User = {
             id: userId, // 从JWT token解析的数字ID
-            userName: loginResponse.user?.userName || 'unknown',
-            realName: loginResponse.user?.realName || '',
-            phone: loginResponse.user?.phone || '',
-            role: (loginResponse.user?.role as 'admin' | 'user') || 'user',
-            email: loginResponse.user?.email || `${loginResponse.user?.userName || 'user'}@mining.com`,
-            avatar: loginResponse.user?.avatar || ''
+            userName: profile?.userName || 'unknown',
+            realName: profile?.realName || '',
+            phone: profile?.phone || '',
+            role: (profile?.role as 'admin' | 'user') || 'user',
+            email: profile?.email || `${profile?.userName || 'user'}@mining.com`,
+            avatar: profile?.avatar || ''
           };
 
           // 确保状态更新成功
@@ -127,8 +129,12 @@ export const useAuthStore = create<AuthState>()(
         // 获取当前用户ID用于清理
         const currentUser = get().user;
         
-        // 调用API登出
-        apiService.logout().catch(console.error);
+        // 调用API登出（异步，不阻塞UI）
+        try {
+          apiService.logout();
+        } catch (error) {
+          console.error('登出API调用失败:', error);
+        }
         
         // 清除本地状态
         localStorage.removeItem('auth_token');
@@ -152,11 +158,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // 内部方法（用于测试）
-      setUser: (user: User) => {
+      setUser: (user: User | null) => {
         set({ user });
       },
 
-      setToken: (token: string) => {
+      setToken: (token: string | null) => {
         set({ token });
       },
 
@@ -164,7 +170,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isAuthenticated: authenticated });
       },
 
-      setError: (error: string) => {
+      setError: (error: string | null) => {
         set({ error });
       },
 
@@ -215,9 +221,13 @@ export const useAuthStore = create<AuthState>()(
         } catch (error: any) {
           console.error('认证检查失败:', error);
           
-          // 只在明确的401错误时才清除认证状态
-          // 其他错误（网络问题等）不应该导致用户被登出
-          if (error?.response?.status === 401) {
+          // 在认证错误或token相关错误时清除认证状态
+          const isAuthError = error?.response?.status === 401 || 
+                             error?.message?.toLowerCase().includes('token') || 
+                             error?.message?.includes('Invalid token') ||
+                             error?.name === 'TokenExpiredError';
+          
+          if (isAuthError) {
             localStorage.removeItem('auth_token');
             set({
               user: null,

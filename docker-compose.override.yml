@@ -1,0 +1,64 @@
+# Docker Compose - 开发环境覆盖配置
+# 用于本地开发的额外配置，自动与docker-compose.yml合并
+
+version: '3.8'
+
+services:
+  mining-frontend:
+    # 开发环境端口映射
+    ports:
+      - "3000:80"
+    
+    # 开发环境变量
+    environment:
+      - NODE_ENV=development
+      - DEBUG=true
+    
+    # 开发时的卷挂载 (热更新支持)
+    volumes:
+      # 源码映射 (如需要热更新，取消注释)
+      # - ./src:/app/src:ro
+      # - ./public:/app/public:ro
+      
+      # 配置文件映射
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      
+      # 日志映射到本地
+      - ./logs/nginx:/var/log/nginx
+    
+    # 开发环境资源限制更宽松
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  mining-redis:
+    # 开发环境暴露Redis端口
+    ports:
+      - "6379:6379"
+    
+    # 开发环境Redis配置
+    command: >
+      redis-server
+      --appendonly yes
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+
+# 开发环境额外服务
+# ================================
+# 开发工具容器 (可选)
+# ================================
+# nginx-dev:
+#   image: nginx:alpine
+#   container_name: mining-dev-proxy
+#   ports:
+#     - "8080:80"
+#   volumes:
+#     - ./docker/dev-nginx.conf:/etc/nginx/conf.d/default.conf
+#   networks:
+#     - mining-network

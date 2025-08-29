@@ -88,6 +88,26 @@ export interface SafetyDataFormData {
   file?: File;
 }
 
+// 上传安全资料请求接口 - 完全匹配后端UploadSafetyDataRequest
+export interface UploadSafetyDataRequest {
+  title: string;                    // @NotBlank
+  description: string;              // @NotBlank
+  safetyLevel: string;             // @NotNull SafetyLevelEnum -> 'LOW_RISK' | 'MEDIUM_RISK' | 'HIGH_RISK' | 'CRITICAL_RISK'
+  mineType: string;                // @NotNull MineTypeEnum -> 'COAL_MINE' | 'METAL_MINE' | 'NON_METAL_MINE' | 'OPEN_PIT_MINE'
+  category: string;                // @NotNull CategoryEnum -> 'GAS_DETECTION' | 'EQUIPMENT_SAFETY' | etc.
+  province: string;                // @NotBlank
+  city: string;                    // @NotBlank
+  district: string;                // @NotBlank
+  address: string;                 // @NotBlank
+  longitude: string;               // @NotBlank
+  latitude: string;                // @NotBlank
+  downloadUrl: string;             // @NotBlank
+  fileSize: string;                // @NotBlank
+  fileType: string;                // @NotBlank
+  relatedItems: number[];          // @NotNull List<Long>
+  tags: string[];                  // @NotNull List<String>
+}
+
 // API响应接口 - 匹配后端AjaxResult格式
 export interface ApiResponse<T = any> {
   code: number;    // 0表示成功

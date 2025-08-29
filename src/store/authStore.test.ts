@@ -17,6 +17,12 @@ describe('AuthStore', () => {
     // 清除所有模拟和本地存储
     jest.clearAllMocks();
     localStorage.clear();
+    
+    // 重置Zustand状态
+    useAuthStore.getState().setUser(null);
+    useAuthStore.getState().setToken(null);
+    useAuthStore.getState().setAuthenticated(false);
+    useAuthStore.getState().setError(null);
   });
 
   describe('initial state', () => {

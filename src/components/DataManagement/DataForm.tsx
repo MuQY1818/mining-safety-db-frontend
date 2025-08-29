@@ -18,8 +18,9 @@ import {
   SaveOutlined,
   CloseOutlined
 } from '@ant-design/icons';
-import { SafetyData } from '../../types/safety';
+import { SafetyData, UploadSafetyDataRequest } from '../../types/safety';
 import type { UploadFile } from 'antd/es/upload/interface';
+import { apiService } from '../../services/api';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -27,7 +28,7 @@ const { Option } = Select;
 interface DataFormProps {
   visible?: boolean;
   onCancel: () => void;
-  onSubmit: (data: Partial<SafetyData>) => Promise<void>;
+  onSubmit: (data: UploadSafetyDataRequest | SafetyData) => Promise<void>;
   initialData?: SafetyData | null;
   loading?: boolean;
 }
@@ -98,32 +99,66 @@ const DataForm: React.FC<DataFormProps> = ({
   const handleSubmit = async () => {
     try {
       setSubmitting(true);
+      console.log('🔄 开始表单提交，验证字段...');
+      
       const values = await form.validateFields();
+      console.log('✅ 表单验证成功，字段值:', values);
       
       // 处理文件上传
       let downloadUrl = '';
       if (fileList.length > 0 && fileList[0].response) {
         downloadUrl = fileList[0].response.url;
+        console.log('📁 使用上传的文件URL:', downloadUrl);
       } else if (initialData?.downloadUrl) {
         downloadUrl = initialData.downloadUrl;
+        console.log('📁 使用初始数据的文件URL:', downloadUrl);
+      } else {
+        console.log('⚠️ 没有找到文件URL');
       }
 
-      const submitData: Partial<SafetyData> = {
-        ...values,
-        downloadUrl,
-        publishDate: values.publishDate?.toISOString(),
+      // 根据API文档，枚举值直接使用前端格式，无需映射转换
+      console.log('📋 表单原始值（按API文档格式）:', {
+        safetyLevel: values.safetyLevel, // API文档: "low", "medium", "high", "critical"
+        mineType: values.mineType,       // API文档: "coal", "metal", "nonmetal", "openpit"
+        category: values.category        // API文档: "gas_detection", "equipment_safety", 等等
+      });
+
+      // 构造完全匹配后端UploadSafetyDataRequest的数据
+      const submitData: UploadSafetyDataRequest = {
+        title: values.title,
+        description: values.description,
+        safetyLevel: values.safetyLevel,  // 直接使用API文档格式
+        mineType: values.mineType,        // 直接使用API文档格式  
+        category: values.category,        // 直接使用API文档格式
         province: values.province,
         city: values.city,
-        district: values.district,
-        id: initialData?.id
+        district: values.district || '未指定区县',
+        address: '默认详细地址',
+        longitude: '116.407526',
+        latitude: '39.904030',
+        downloadUrl: downloadUrl || 'http://placeholder.example.com/default.pdf',
+        fileSize: downloadUrl ? '1024' : '0',
+        fileType: downloadUrl ? 'application/pdf' : 'text/plain',
+        relatedItems: [],
+        tags: []
       };
 
+      console.log('🚀 准备提交数据:', submitData);
       await onSubmit(submitData);
       message.success(initialData ? '更新成功！' : '添加成功！');
       handleCancel();
-    } catch (error) {
-      console.error('表单提交失败:', error);
-      message.error('操作失败，请重试');
+    } catch (error: any) {
+      console.error('❌ 表单提交失败:', error);
+      
+      // 区分验证错误和提交错误
+      if (error.errorFields) {
+        console.error('📋 表单验证失败的字段:', error.errorFields);
+        message.error('请检查表单填写是否完整');
+        // 自动滚动到第一个错误字段
+        form.scrollToField(error.errorFields[0].name);
+      } else {
+        message.error(`操作失败: ${error.message || '请重试'}`);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -145,9 +180,12 @@ const DataForm: React.FC<DataFormProps> = ({
     beforeUpload: (file: File) => {
       const isValidType = file.type === 'application/pdf' || 
                          file.type.startsWith('image/') ||
-                         file.type.includes('document');
+                         file.type.includes('document') ||
+                         file.type === 'text/plain' ||
+                         file.type.startsWith('application/vnd.openxmlformats-officedocument') ||
+                         file.type === 'application/msword';
       if (!isValidType) {
-        message.error('只能上传 PDF、图片或文档格式的文件！');
+        message.error('只能上传 PDF、图片、文档或文本格式的文件！');
         return false;
       }
       const isLt10M = file.size / 1024 / 1024 < 10;
@@ -156,7 +194,38 @@ const DataForm: React.FC<DataFormProps> = ({
         return false;
       }
       return true;
-    }
+    },
+    customRequest: async (options: any) => {
+      const { file, onSuccess, onError, onProgress } = options;
+      
+      try {
+        console.log('📁 开始通过customRequest上传文件:', {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type
+        });
+        
+        // 调用上传API
+        const response = await apiService.uploadFile(file);
+        
+        console.log('✅ customRequest文件上传成功:', response);
+        
+        // 验证响应数据
+        if (!response || !response.url) {
+          throw new Error('服务器返回数据不完整');
+        }
+        
+        // 上传成功，调用onSuccess并传入响应数据
+        onSuccess(response, file);
+        
+        message.success('文件上传成功！');
+      } catch (error: any) {
+        console.error('❌ customRequest文件上传失败:', error);
+        onError(error);
+        message.error(`文件上传失败: ${error.message || '未知错误'}`);
+      }
+    },
+    maxCount: 1, // 限制只能上传一个文件
   };
 
   // 如果visible为false，不渲染

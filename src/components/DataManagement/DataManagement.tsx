@@ -22,7 +22,7 @@ import {
   DownloadOutlined,
   ExclamationCircleOutlined
 } from '@ant-design/icons';
-import { SafetyData, SafetyLevel } from '../../types/safety';
+import { SafetyData, SafetyLevel, UploadSafetyDataRequest } from '../../types/safety';
 import { MINING_BLUE_COLORS } from '../../config/theme';
 import DataForm from './DataForm';
 import { useSafetyDataStore } from '../../store/safetyDataStore';
@@ -95,12 +95,14 @@ const DataManagement: React.FC = () => {
   };
 
   // 处理表单提交
-  const handleFormSubmit = async (formData: Partial<SafetyData>) => {
+  const handleFormSubmit = async (formData: UploadSafetyDataRequest | SafetyData) => {
     try {
       if (editingData) {
-        await updateData(String(editingData.id), formData);
+        // 编辑时，formData应该是SafetyData类型
+        await updateData(String(editingData.id), formData as SafetyData);
       } else {
-        await addData(formData as Omit<SafetyData, 'id'>);
+        // 新增时，formData是UploadSafetyDataRequest类型
+        await addData(formData as any);
       }
     } catch (error) {
       throw error; // 让表单组件处理错误
