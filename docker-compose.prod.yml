@@ -9,7 +9,7 @@ services:
   # ================================
   mining-frontend:
     # 生产环境直接从GitHub Container Registry拉取镜像
-    image: ${DOCKER_IMAGE:-ghcr.io/your-org/mining-safety-db-frontend:latest}
+    image: ${DOCKER_IMAGE:-ghcr.io/muqy1818/mining-safety-db-frontend:latest}
     
     # 仅本地开发时构建（注释掉用于生产）
     # build:
