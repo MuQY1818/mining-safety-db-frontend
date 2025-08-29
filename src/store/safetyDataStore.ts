@@ -90,7 +90,8 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
       console.log('✅ 获取到安全资料数据:', {
         total: response.total,
         listLength: response.list?.length || 0,
-        currentPage: response.page
+        currentPage: response.page,
+        hasToken: !!localStorage.getItem('auth_token')
       });
       
       set({
@@ -107,7 +108,11 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
       get().applyFilters();
       
     } catch (error) {
-      console.error('❌ 获取安全资料数据失败:', error);
+      console.error('❌ 获取安全资料数据失败:', {
+        error: error,
+        hasToken: !!localStorage.getItem('auth_token'),
+        params: params
+      });
       set({
         error: error instanceof Error ? error.message : '获取安全资料失败',
         loading: false
@@ -163,17 +168,43 @@ export const useSafetyDataStore = create<SafetyDataState>((set, get) => ({
     
     try {
       const numericId = parseInt(id, 10);
-      const fullData = { ...updatedData, id: numericId } as SafetyData;
+      if (isNaN(numericId)) {
+        throw new Error('无效的数据ID');
+      }
+      
+      // 安全的数据合并，保持原有必需字段
+      const currentData = get().data.find(item => item.id === numericId);
+      if (!currentData) {
+        throw new Error('找不到要更新的数据');
+      }
+      
+      const fullData: SafetyData = {
+        ...currentData,
+        ...updatedData,
+        id: numericId // 确保ID不变
+      };
+      
+      console.log('🔄 更新安全资料:', {
+        id: numericId,
+        updatedFields: Object.keys(updatedData),
+        hasTitle: !!fullData.title,
+        hasDescription: !!fullData.description
+      });
+      
       await apiService.updateSafetyData(fullData);
+      console.log('✅ 安全资料更新成功');
       
       // 更新后刷新数据
       await get().fetchData();
+      set({ loading: false });
       
     } catch (error) {
+      console.error('❌ 更新安全资料失败:', error);
       set({
         error: error instanceof Error ? error.message : '更新安全资料失败',
         loading: false
       });
+      throw error; // 重新抛出错误让上层处理
     }
   },
 

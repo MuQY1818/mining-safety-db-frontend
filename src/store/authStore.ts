@@ -40,6 +40,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  hasHydrated: boolean; // persist状态恢复完成标记
 
   // 操作
   login: (credentials: { username: string; password: string }) => Promise<void>;
@@ -47,6 +48,7 @@ interface AuthState {
   clearError: () => void;
   checkAuth: () => Promise<void>;
   clearUserData: (userId?: number) => void;
+  setHasHydrated: (hydrated: boolean) => void;
   // 内部方法（用于测试）
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
@@ -63,6 +65,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      hasHydrated: false,
 
       // 登录
       login: async (credentials: { username: string; password: string }) => {
@@ -246,6 +249,11 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      // 设置persist恢复状态
+      setHasHydrated: (hasHydrated: boolean) => {
+        set({ hasHydrated });
+      },
+
       // 清理用户特定数据
       clearUserData: (userId?: number) => {
         try {
@@ -281,7 +289,11 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated
-      })
+      }),
+      onRehydrateStorage: () => (state) => {
+        console.log('🔄 认证状态恢复完成');
+        state?.setHasHydrated?.(true);
+      }
     }
   )
 );

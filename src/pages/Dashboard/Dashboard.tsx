@@ -33,6 +33,7 @@ import {
 } from '@ant-design/icons';
 import { SafetyData, UploadSafetyDataRequest } from '../../types/safety';
 import { useSafetyDataStore } from '../../store/safetyDataStore';
+import { useAuthStore } from '../../store/authStore';
 import DataForm from '../../components/DataManagement/DataForm';
 import { MINING_BLUE_COLORS } from '../../config/theme';
 
@@ -86,10 +87,22 @@ const Dashboard: React.FC = () => {
     loading: storeLoading 
   } = useSafetyDataStore();
 
-  // 初始化数据加载
+  // 获取认证状态和persist恢复状态
+  const { isAuthenticated, hasHydrated } = useAuthStore();
+
+  // 初始化数据加载 - 等待persist恢复完成后判断认证状态
   useEffect(() => {
-    fetchData();
-  }, []); // 空依赖数组，只在组件挂载时执行一次
+    if (hasHydrated) {
+      if (isAuthenticated && !storeLoading) {
+        console.log('🔄 Dashboard认证恢复完成，开始加载数据');
+        fetchData();
+      } else if (!isAuthenticated) {
+        console.log('⚠️ 用户未认证，跳过数据加载');
+      }
+    } else {
+      console.log('⏳ 等待认证状态恢复...');
+    }
+  }, [hasHydrated, isAuthenticated, fetchData]); // 添加hasHydrated依赖
 
   // 处理添加数据
   const handleAdd = () => {

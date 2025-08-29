@@ -13,6 +13,7 @@ import {
   InputNumber,
   Space
 } from 'antd';
+import dayjs from 'dayjs';
 import {
   UploadOutlined,
   SaveOutlined,
@@ -73,13 +74,37 @@ const DataForm: React.FC<DataFormProps> = ({
   // 当初始数据变化时，更新表单
   useEffect(() => {
     if (initialData) {
+      // 安全的日期转换处理
+      const dateStr = initialData.publishDate || initialData.createdAt;
+      let publishDate = null;
+      if (dateStr) {
+        try {
+          publishDate = dayjs(dateStr);
+          // 验证日期是否有效
+          if (!publishDate.isValid()) {
+            console.warn('无效的日期格式:', dateStr);
+            publishDate = null;
+          }
+        } catch (error) {
+          console.warn('日期格式转换失败:', dateStr, error);
+          publishDate = null;
+        }
+      }
+
       form.setFieldsValue({
         ...initialData,
-        publishDate: (initialData.publishDate || initialData.createdAt) ? new Date(initialData.publishDate || initialData.createdAt) : null,
+        publishDate: publishDate,
         province: initialData.province,
         city: initialData.city,
         district: initialData.district
       });
+      
+      console.log('📅 设置表单日期值:', {
+        原始日期: dateStr,
+        转换后: publishDate?.format?.('YYYY-MM-DD') || null,
+        有效性: publishDate?.isValid?.() || false
+      });
+      
       // 设置文件列表
       if (initialData.downloadUrl) {
         setFileList([{

@@ -11,7 +11,8 @@
             "driver": "MySQL",
             "name": "Mining-DB",
             "database": "mining_db",
-            "username": "root"
+            "username": "root",
+            "password": "mysql_c32bwZ"
         }
     ]
 }
