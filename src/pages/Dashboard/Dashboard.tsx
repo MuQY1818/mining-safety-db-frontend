@@ -1,5 +1,5 @@
 // 主数据展示页面 - 整合数据管理功能
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Layout,
@@ -82,8 +82,14 @@ const Dashboard: React.FC = () => {
     addData, 
     updateData, 
     deleteData, 
+    fetchData,
     loading: storeLoading 
   } = useSafetyDataStore();
+
+  // 初始化数据加载
+  useEffect(() => {
+    fetchData();
+  }, []); // 空依赖数组，只在组件挂载时执行一次
 
   // 处理添加数据
   const handleAdd = () => {
