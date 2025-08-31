@@ -132,6 +132,13 @@ export interface LoginRequest {
   password: string;
 }
 
+// 注册请求类型 - 匹配后端SignupRequest格式
+export interface RegisterRequest {
+  username: string;
+  password: string;
+  realName: string;
+}
+
 // 登录响应类型 - 匹配后端API格式
 export interface LoginResponse {
   token: string;

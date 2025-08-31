@@ -47,7 +47,12 @@
       "Bash(powershell:*)",
       "Bash(python:*)",
       "Bash(chmod:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "mcp__puppeteer__puppeteer_navigate",
+      "mcp__puppeteer__puppeteer_screenshot",
+      "mcp__puppeteer__puppeteer_click",
+      "mcp__puppeteer__puppeteer_fill",
+      "mcp__puppeteer__puppeteer_evaluate"
     ],
     "deny": [],
     "ask": [],

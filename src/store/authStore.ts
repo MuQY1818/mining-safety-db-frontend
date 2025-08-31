@@ -1,7 +1,7 @@
 // 认证状态管理
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User } from '../types/database';
+import { User, RegisterRequest } from '../types/database';
 import { apiService } from '../services/api';
 
 // JWT token解析工具函数
@@ -41,11 +41,17 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   hasHydrated: boolean; // persist状态恢复完成标记
+  
+  // 注册状态
+  isRegistering: boolean;
+  registerError: string | null;
 
   // 操作
   login: (credentials: { username: string; password: string }) => Promise<void>;
+  register: (registerData: RegisterRequest) => Promise<void>;
   logout: () => void;
   clearError: () => void;
+  clearRegisterError: () => void;
   checkAuth: () => Promise<void>;
   clearUserData: (userId?: number) => void;
   setHasHydrated: (hydrated: boolean) => void;
@@ -66,6 +72,10 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
       hasHydrated: false,
+      
+      // 注册状态
+      isRegistering: false,
+      registerError: null,
 
       // 登录
       login: async (credentials: { username: string; password: string }) => {
@@ -127,6 +137,47 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      // 注册
+      register: async (registerData: RegisterRequest) => {
+        set({ isRegistering: true, registerError: null });
+
+        try {
+          console.log('开始注册，用户名:', registerData.username);
+          
+          // 调用注册API
+          const registerResponse = await apiService.signup(
+            registerData.username,
+            registerData.password,
+            registerData.realName
+          );
+          
+          console.log('✅ 注册成功，准备自动登录');
+          
+          // 注册成功后自动登录
+          const loginCredentials = {
+            username: registerData.username,
+            password: registerData.password
+          };
+          
+          // 重置注册状态
+          set({ isRegistering: false, registerError: null });
+          
+          // 调用login方法实现自动登录
+          await get().login(loginCredentials);
+          
+          console.log('✅ 注册并自动登录成功');
+          
+        } catch (error) {
+          console.error('❌ 注册失败:', error);
+          
+          set({
+            isRegistering: false,
+            registerError: error instanceof Error ? error.message : '注册失败，请重试'
+          });
+          throw error;
+        }
+      },
+
       // 登出
       logout: () => {
         // 获取当前用户ID用于清理
@@ -158,6 +209,11 @@ export const useAuthStore = create<AuthState>()(
       // 清除错误
       clearError: () => {
         set({ error: null });
+      },
+
+      // 清除注册错误
+      clearRegisterError: () => {
+        set({ registerError: null });
       },
 
       // 内部方法（用于测试）
