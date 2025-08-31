@@ -46,7 +46,8 @@
       "Read(/E:\\Code\\Project\\mining-db-server\\src\\main\\java\\cn\\mining\\server\\controller/**)",
       "Bash(powershell:*)",
       "Bash(python:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": [],
