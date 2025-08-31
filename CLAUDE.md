@@ -138,7 +138,7 @@ src/
 - **本地构建推送**：`./scripts/build-and-push.sh [tag]`
 - **服务器更新**：`./scripts/server-update.sh [image_tag]`
 - **CI/CD自动化**：推送代码到main分支自动触发镜像构建和推送
-- **镜像仓库**：GitHub Container Registry (`ghcr.io`)
+- **镜像仓库**：GitHub Container Registry (`ghcr.io/muqy1818/mining-safety-db-frontend`)
 
 ### 部署模式
 - **滚动更新**：零停机时间更新（默认）
@@ -274,6 +274,10 @@ src/
 
 - `<YYYY-MM-DD>`：<改动摘要>；**影响面**：<受影响模块>；**回滚**：<回滚方式>；**相关**：<文件/PR/Issue>
 
+- 2025-08-31：修复详情页面重复计数问题-添加防重复机制；**影响面**：DataDetailPage.tsx添加useRef防止同一ID重复调用API，优化依赖数组只保留id，直接调用store.getState()避免不必要的重渲染，清理未使用的allData变量；**回滚**：移除useRef和防重复逻辑，恢复allData依赖；**相关**：DataDetailPage.tsx:70-127行防重复逻辑，viewCountUpdated ref机制
+- 2025-08-31：修复数据详情页无法打开问题-恢复本地数据查找模式；**影响面**：DataDetailPage.tsx改为混合模式(先显示本地数据再后台调用API增加浏览次数)，移除formatFileSize未使用函数，优化错误处理避免直接跳转首页；**回滚**：恢复纯API调用模式，添加formatFileSize函数；**相关**：DataDetailPage.tsx:71-112行逻辑重构，从API调用改回本地store查找+后台API
+- 2025-08-31：配置真实GitHub仓库地址和API密钥；**影响面**：构建脚本默认配置改为muqy1818用户名，Docker配置文件更新真实仓库地址，生产环境配置添加SiliconFlow API密钥，CLAUDE.md文档更新镜像仓库信息；**回滚**：恢复your-org占位符配置，移除API密钥配置；**相关**：build-and-push.sh:38-47,docker-compose.prod.yml:12,.env.production:10+32-33,.env.production.example:19+26+119
+- 2025-08-31：实现三项功能改进-数据详情API调用、管理员权限控制、Docker环境AI修复；**影响面**：DataDetailPage组件改为调用API递增浏览次数，Dashboard组件添加管理员权限验证，Docker构建配置添加AI API密钥传递；**回滚**：恢复原有useEffect逻辑，移除权限判断条件，移除Dockerfile和env配置中的AI相关配置；**相关**：DataDetailPage.tsx:70-93，Dashboard.tsx:367-377，Dockerfile:28-33，build-and-push.sh:122-129，.env配置文件
 - 2025-08-29：建立完整的Docker镜像CI/CD部署方案；**影响面**：新增GitHub Actions自动化构建推送、本地构建脚本、服务器更新脚本、生产环境配置模板，实现代码push→镜像构建→服务器拉取→滚动更新的完整流程；**回滚**：删除.github/workflows/、scripts/build-and-push.sh、scripts/server-update.sh、.env.production.example文件；**相关**：CI/CD工作流、Docker镜像仓库集成、蓝绿部署支持
 - 2025-08-29：清理所有测试文件回到纯净生产代码状态；**影响面**：删除src测试文件6个、tests目录、playwright.config.ts、测试脚本2个、调试文件9个，项目专注于生产功能；**回滚**：从git历史恢复测试文件和配置；**相关**：*.test.*、tests/、playwright.config.ts、scripts/run-all-tests.sh、debug-python-upload.py等
 - 2025-08-29：修复UI核心问题-表单验证和数据加载；**影响面**：DataForm组件DatePicker验证、Dashboard首次访问数据加载、认证状态持久化、数据存储错误处理；**回滚**：git revert 667db04；**相关**：DataForm.tsx,Dashboard.tsx,authStore.ts,safetyDataStore.ts

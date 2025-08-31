@@ -1,5 +1,5 @@
 // 数据详情页面
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Layout,
@@ -12,7 +12,6 @@ import {
   Col,
   Breadcrumb,
   Descriptions,
-  Divider,
   message,
   Spin
 } from 'antd';
@@ -29,6 +28,7 @@ import {
 } from '@ant-design/icons';
 import { SafetyData } from '../../types/safety';
 import { useSafetyDataStore } from '../../store/safetyDataStore';
+import { apiService } from '../../services/api';
 import { MINING_BLUE_COLORS } from '../../config/theme';
 
 const { Content } = Layout;
@@ -65,22 +65,65 @@ const DataDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<SafetyData | null>(null);
   const [loading, setLoading] = useState(true);
-  const { data: allData } = useSafetyDataStore();
+  
+  // 防止重复调用API的ref
+  const viewCountUpdated = useRef<string | null>(null);
 
   useEffect(() => {
-    if (id && allData.length > 0) {
-      const item = allData.find(item => String(item.id) === id);
-      if (item) {
-        setData(item);
-        // 增加浏览次数
-        // TODO: 调用API更新浏览次数
-      } else {
-        message.error('数据不存在');
-        navigate('/');
+    const loadDataDetail = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
       }
-      setLoading(false);
-    }
-  }, [id, allData, navigate]);
+
+      // 获取当前store状态，避免依赖allData变化
+      const currentAllData = useSafetyDataStore.getState().data;
+      
+      // 首先尝试从本地store查找数据，确保界面可以立即显示
+      const localItem = currentAllData.find(item => String(item.id) === id);
+      if (localItem) {
+        setData(localItem);
+        setLoading(false);
+        
+        // 检查是否已经为此ID调用过API，防止重复计数
+        if (viewCountUpdated.current !== id) {
+          viewCountUpdated.current = id;
+          
+          // 在后台调用API来增加浏览次数，但不影响界面显示
+          try {
+            console.log('📊 后台调用API增加浏览次数，ID:', id);
+            await apiService.getSafetyDataById(Number(id));
+            console.log('✅ 浏览次数更新成功');
+          } catch (error) {
+            console.warn('⚠️ 浏览次数更新失败（不影响界面显示）:', error);
+            // 如果API调用失败，重置ref以便下次重试
+            viewCountUpdated.current = null;
+          }
+        } else {
+          console.log('📊 该ID已更新过浏览次数，跳过重复调用');
+        }
+        return;
+      }
+
+      // 如果本地没有数据，尝试API调用
+      try {
+        setLoading(true);
+        console.log('🔄 本地无数据，尝试API获取详情...');
+        const item = await apiService.getSafetyDataById(Number(id));
+        setData(item);
+        viewCountUpdated.current = id; // 记录已调用
+        console.log('✅ API获取详情成功');
+      } catch (error) {
+        console.error('❌ API获取详情失败:', error);
+        message.error('数据不存在或加载失败，请返回列表页重新加载数据');
+        // 不直接跳转，让用户自己决定是否返回
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDataDetail();
+  }, [id]); // 只依赖id，避免因allData变化导致重复执行
 
   // 处理下载
   const handleDownload = () => {
@@ -92,13 +135,6 @@ const DataDetailPage: React.FC = () => {
     }
   };
 
-  // 格式化文件大小
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return '未知';
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
-  };
 
   // 格式化日期
   const formatDate = (dateStr: string) => {

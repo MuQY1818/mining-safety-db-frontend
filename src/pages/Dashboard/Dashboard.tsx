@@ -88,7 +88,7 @@ const Dashboard: React.FC = () => {
   } = useSafetyDataStore();
 
   // 获取认证状态和persist恢复状态
-  const { isAuthenticated, hasHydrated } = useAuthStore();
+  const { isAuthenticated, hasHydrated, user } = useAuthStore();
 
   // 初始化数据加载 - 等待persist恢复完成后判断认证状态
   useEffect(() => {
@@ -364,14 +364,17 @@ const Dashboard: React.FC = () => {
           <Row justify="space-between" align="middle">
             <Col>
               <Space>
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={handleAdd}
-                  size="large"
-                >
-                  添加资料
-                </Button>
+                {/* 只有管理员用户才显示添加资料按钮 */}
+                {user?.role === 'admin' && (
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={handleAdd}
+                    size="large"
+                  >
+                    添加资料
+                  </Button>
+                )}
                 <Button
                   icon={<DownloadOutlined />}
                   size="large"
