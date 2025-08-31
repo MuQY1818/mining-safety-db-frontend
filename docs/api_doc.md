@@ -230,6 +230,43 @@ POST /api/feedback
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[AjaxResultVoid](#schemaajaxresultvoid)|
 
+<a id="opIdhandleFeedback"></a>
+
+## POST 处理反馈
+
+POST /api/feedback/handle
+
+> Body 请求参数
+
+```json
+{
+  "feedbackId": 0,
+  "status": "pending",
+  "reply": "string"
+}
+```
+
+### 请求参数
+
+|名称|位置|类型|必选|说明|
+|---|---|---|---|---|
+|Authorization|header|string| 是 |none|
+|body|body|[HandleFeedbackRequest](#schemahandlefeedbackrequest)| 否 |none|
+
+> 返回示例
+
+> 200 Response
+
+```
+{"code":0,"msg":"string","data":{}}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[AjaxResultVoid](#schemaajaxresultvoid)|
+
 <a id="opIdgetFeedbackList"></a>
 
 ## GET 获取反馈列表
@@ -2137,3 +2174,34 @@ POST /api/chat/messages
 |role|assistant|
 |role|system|
 
+<h2 id="tocS_HandleFeedbackRequest">HandleFeedbackRequest</h2>
+
+<a id="schemahandlefeedbackrequest"></a>
+<a id="schema_HandleFeedbackRequest"></a>
+<a id="tocShandlefeedbackrequest"></a>
+<a id="tocshandlefeedbackrequest"></a>
+
+```json
+{
+  "feedbackId": 0,
+  "status": "pending",
+  "reply": "string"
+}
+
+```
+
+### 属性
+
+|名称|类型|必选|约束|中文名|说明|
+|---|---|---|---|---|---|
+|feedbackId|integer(int64)|false|none||none|
+|status|string|false|none||none|
+|reply|string|false|none||none|
+
+#### 枚举值
+
+|属性|值|
+|---|---|
+|status|pending|
+|status|resolved|
+|status|closed|

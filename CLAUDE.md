@@ -274,6 +274,7 @@ src/
 
 - `<YYYY-MM-DD>`：<改动摘要>；**影响面**：<受影响模块>；**回滚**：<回滚方式>；**相关**：<文件/PR/Issue>
 
+- 2025-08-31：完成用户注册功能-Tabs切换界面和完整验证流程；**影响面**：types/database.ts添加RegisterRequest接口，authStore.ts扩展注册方法和状态管理(isRegistering/registerError)，Login/index.tsx重构为Tab模式支持登录和注册，注册成功后自动登录并跳转首页，表单验证包含用户名格式、密码强度、确认密码一致性检查；**回滚**：移除RegisterRequest接口，删除authStore中注册相关方法和状态，恢复Login页面为单一登录表单；**相关**：types/database.ts:135-140,authStore.ts:141-179,Login/index.tsx完整重构
 - 2025-08-31：修复详情页面重复计数问题-添加防重复机制；**影响面**：DataDetailPage.tsx添加useRef防止同一ID重复调用API，优化依赖数组只保留id，直接调用store.getState()避免不必要的重渲染，清理未使用的allData变量；**回滚**：移除useRef和防重复逻辑，恢复allData依赖；**相关**：DataDetailPage.tsx:70-127行防重复逻辑，viewCountUpdated ref机制
 - 2025-08-31：修复数据详情页无法打开问题-恢复本地数据查找模式；**影响面**：DataDetailPage.tsx改为混合模式(先显示本地数据再后台调用API增加浏览次数)，移除formatFileSize未使用函数，优化错误处理避免直接跳转首页；**回滚**：恢复纯API调用模式，添加formatFileSize函数；**相关**：DataDetailPage.tsx:71-112行逻辑重构，从API调用改回本地store查找+后台API
 - 2025-08-31：配置真实GitHub仓库地址和API密钥；**影响面**：构建脚本默认配置改为muqy1818用户名，Docker配置文件更新真实仓库地址，生产环境配置添加SiliconFlow API密钥，CLAUDE.md文档更新镜像仓库信息；**回滚**：恢复your-org占位符配置，移除API密钥配置；**相关**：build-and-push.sh:38-47,docker-compose.prod.yml:12,.env.production:10+32-33,.env.production.example:19+26+119
