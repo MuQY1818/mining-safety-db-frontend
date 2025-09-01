@@ -32,6 +32,16 @@ export const API_ENDPOINTS = {
   FILE: {
     UPLOAD: '/file/upload',            // POST - 上传文件
     DOWNLOAD: '/file/download'         // GET - 下载文件（需要objectURL参数）
+  },
+
+  // AI聊天相关接口 - 对应后端 ChatController
+  CHAT: {
+    CREATE_SESSION: '/api/chat',       // POST - 创建聊天会话
+    GET_SESSIONS: '/api/chat',         // GET - 获取会话列表
+    UPDATE_SESSION: '/api/chat',       // PUT - 更新会话信息
+    DELETE_SESSION: '/api/chat',       // DELETE - 删除会话
+    SAVE_MESSAGE: '/api/chat/messages', // POST - 保存单个消息
+    GET_MESSAGES: '/api/chat/messages' // GET - 获取会话消息历史
   }
 } as const;
 
@@ -166,6 +176,7 @@ export const API_ERROR_CODES = {
   FILE_CAN_NOT_BE_EMPTY: 200005,     // 文件不能为空
   FILE_UPLOAD_ERROR: 200006,         // 文件上传失败
   USERNAME_ALREADY_EXISTS: 200007,   // 用户名已存在
+  FEEDBACK_ALREADY_HANDLED: 200008,  // 反馈已处理过
   NOT_FOUND_ERROR: 200404,           // 404错误
   SERVER_ERROR: 200500               // 系统错误
 } as const;
@@ -186,6 +197,7 @@ export const API_ERROR_MESSAGES: Record<number, string> = {
   [API_ERROR_CODES.FILE_CAN_NOT_BE_EMPTY]: '文件不能为空',
   [API_ERROR_CODES.FILE_UPLOAD_ERROR]: '文件上传失败',
   [API_ERROR_CODES.USERNAME_ALREADY_EXISTS]: '用户名已存在',
+  [API_ERROR_CODES.FEEDBACK_ALREADY_HANDLED]: '该反馈已经被处理过了',
   [API_ERROR_CODES.NOT_FOUND_ERROR]: 'Not Found',
   [API_ERROR_CODES.SERVER_ERROR]: '系统错误, 请稍后重试'
 };

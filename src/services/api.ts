@@ -338,14 +338,28 @@ class ApiService {
       'JSON序列化后': JSON.stringify(feedbackId)
     });
     
-    const response = await this.client.post<ApiResponse<any>>('/feedback/handle', {
-      feedbackId: Number(feedbackId), // 确保为数字类型
-      status, // 后端FeedbackStatusEnum会自动映射字符串值
-      reply
-    });
-    
-    console.log('✅ 反馈处理成功:', response.data);
-    return response.data.data;
+    try {
+      const response = await this.client.post<ApiResponse<any>>('/feedback/handle', {
+        feedbackId: Number(feedbackId), // 确保为数字类型
+        status, // 后端FeedbackStatusEnum会自动映射字符串值
+        reply
+      });
+      
+      console.log('✅ 反馈处理成功:', response.data);
+      return response.data.data;
+    } catch (error: any) {
+      // 特殊处理200008错误码 - 反馈已处理过
+      if (error.response?.data?.code === 200008) {
+        // 抛出特殊的错误对象，包含错误码信息
+        const specialError = new Error('该反馈已经被处理过了');
+        (specialError as any).code = 200008;
+        (specialError as any).isAlreadyHandled = true;
+        throw specialError;
+      }
+      
+      // 其他错误照常抛出
+      throw error;
+    }
   }
 
   // 健康检查
