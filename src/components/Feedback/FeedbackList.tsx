@@ -175,7 +175,22 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
       window.location.reload();
     } catch (error: any) {
       console.error('处理反馈失败:', error);
-      message.error(`处理失败：${error.message || '未知错误'}`);
+      
+      // 特殊处理200008错误码 - 反馈已处理过
+      if (error.code === 200008 || error.isAlreadyHandled) {
+        Modal.info({
+          title: '提示',
+          content: '该反馈已经被处理过了，无需重复处理。',
+          onOk: () => {
+            setHandleVisible(false);
+            handleForm.resetFields();
+            // 刷新数据以获取最新状态
+            window.location.reload();
+          }
+        });
+      } else {
+        message.error(`处理失败：${error.message || '未知错误'}`);
+      }
     } finally {
       setHandleLoading(false);
     }

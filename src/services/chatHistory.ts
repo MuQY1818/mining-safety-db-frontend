@@ -1,5 +1,6 @@
 // 聊天历史管理服务 - 与后端API交互，严格按照后端API文档
 import { apiClient } from './apiClient';
+import { API_ENDPOINTS } from '../api/endpoints';
 
 // 后端ChatSessionResponse接口 - 完全匹配后端返回格式
 export interface ChatSession {
@@ -41,7 +42,7 @@ export class ChatHistoryService {
    * POST /api/chat
    */
   async createSession(request: CreateSessionRequest): Promise<{ sessionId: number }> {
-    const response = await apiClient.post('/api/chat', request);
+    const response = await apiClient.post(API_ENDPOINTS.CHAT.CREATE_SESSION, request);
     return response.data.data;
   }
 
@@ -59,7 +60,7 @@ export class ChatHistoryService {
     total: number;
     list: ChatSession[];
   }> {
-    const response = await apiClient.get('/api/chat', { params });
+    const response = await apiClient.get(API_ENDPOINTS.CHAT.GET_SESSIONS, { params });
     return response.data.data;
   }
 
@@ -72,7 +73,7 @@ export class ChatHistoryService {
     title: string;
     description: string;
   }): Promise<void> {
-    await apiClient.put('/api/chat', updates);
+    await apiClient.put(API_ENDPOINTS.CHAT.UPDATE_SESSION, updates);
   }
 
   /**
@@ -80,7 +81,7 @@ export class ChatHistoryService {
    * DELETE /api/chat?sessionId=123
    */
   async deleteSession(sessionId: number): Promise<void> {
-    await apiClient.delete('/api/chat', {
+    await apiClient.delete(API_ENDPOINTS.CHAT.DELETE_SESSION, {
       params: { sessionId }
     });
   }
@@ -90,7 +91,7 @@ export class ChatHistoryService {
    * POST /api/chat/messages
    */
   async saveMessage(request: SaveMessageRequest): Promise<void> {
-    await apiClient.post('/api/chat/messages', request);
+    await apiClient.post(API_ENDPOINTS.CHAT.SAVE_MESSAGE, request);
   }
 
   /**
@@ -107,7 +108,7 @@ export class ChatHistoryService {
     total: number;
     list: ChatMessage[];
   }> {
-    const response = await apiClient.get('/api/chat/messages', { 
+    const response = await apiClient.get(API_ENDPOINTS.CHAT.GET_MESSAGES, { 
       params: { 
         ...params, 
         sessionId 

@@ -51,9 +51,9 @@ const convertBackendSession = (backendSession: BackendChatSession): ChatSession 
 });
 
 // 辅助函数：转换后端消息数据到前端格式
-const convertBackendMessage = (backendMessage: BackendChatMessage): ChatMessage => ({
+const convertBackendMessage = (backendMessage: BackendChatMessage, sessionId: string): ChatMessage => ({
   id: backendMessage.id.toString(),  // 前端使用string ID
-  sessionId: backendMessage.id.toString(),  // 统一转换为string
+  sessionId: sessionId,  // 使用传入的正确的sessionId，而不是message.id
   role: backendMessage.role,
   content: backendMessage.content,
   timestamp: new Date(backendMessage.createdAt),
@@ -178,7 +178,7 @@ export const useChatStore = create<ChatState>()(
             order: 'asc'
           });
 
-          const messages = messagesData.list.map(convertBackendMessage);
+          const messages = messagesData.list.map(msg => convertBackendMessage(msg, sessionId));
           const updatedSession = { ...session, messages };
 
           set(state => ({

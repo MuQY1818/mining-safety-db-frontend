@@ -22,6 +22,7 @@ import {
 import { SafetyData, UploadSafetyDataRequest } from '../../types/safety';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { apiService } from '../../services/api';
+import { DEFAULT_UPLOAD_CONFIG } from '../../api/endpoints';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -203,21 +204,35 @@ const DataForm: React.FC<DataFormProps> = ({
       setFileList(newFileList);
     },
     beforeUpload: (file: File) => {
-      const isValidType = file.type === 'application/pdf' || 
-                         file.type.startsWith('image/') ||
-                         file.type.includes('document') ||
-                         file.type === 'text/plain' ||
-                         file.type.startsWith('application/vnd.openxmlformats-officedocument') ||
-                         file.type === 'application/msword';
+      console.log('📁 文件上传检测:', { 
+        fileName: file.name, 
+        fileType: file.type, 
+        fileSize: file.size 
+      });
+
+      // 检查文件类型是否在允许列表中
+      const isValidType = DEFAULT_UPLOAD_CONFIG.allowedTypes.includes(file.type);
       if (!isValidType) {
-        message.error('只能上传 PDF、图片、文档或文本格式的文件！');
+        // 提供更详细的错误信息，包括支持的格式
+        const supportedFormats = [
+          'PDF文档', 'Word文档(.doc/.docx)', 
+          'MP4视频', 'AVI视频',
+          'MP3音频', 'WAV音频',
+          'JPEG图片', 'PNG图片', 'GIF图片'
+        ].join('、');
+        message.error(`文件格式不支持！当前文件类型：${file.type || '未识别'}，支持的格式：${supportedFormats}`);
         return false;
       }
-      const isLt200M = file.size / 1024 / 1024 < 200;
-      if (!isLt200M) {
-        message.error('文件大小不能超过 200MB！');
+
+      // 检查文件大小
+      const maxSizeMB = DEFAULT_UPLOAD_CONFIG.maxSize / 1024 / 1024;
+      const fileSizeMB = file.size / 1024 / 1024;
+      if (file.size > DEFAULT_UPLOAD_CONFIG.maxSize) {
+        message.error(`文件大小超限！当前：${fileSizeMB.toFixed(2)}MB，最大允许：${maxSizeMB}MB`);
         return false;
       }
+
+      console.log('✅ 文件检测通过');
       return true;
     },
     customRequest: async (options: any) => {
