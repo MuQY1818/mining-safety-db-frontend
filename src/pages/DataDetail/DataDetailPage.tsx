@@ -126,8 +126,17 @@ const DataDetailPage: React.FC = () => {
   }, [id]); // 只依赖id，避免因allData变化导致重复执行
 
   // 处理下载
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (data?.downloadUrl) {
+      try {
+        // 先调用下载统计接口
+        await apiService.downloadFile(data.downloadUrl);
+        console.log('📊 下载统计记录成功');
+      } catch (error) {
+        console.warn('📊 下载统计失败，但不影响下载:', error);
+      }
+      
+      // 执行实际下载
       window.open(data.downloadUrl, '_blank');
       message.success('开始下载');
     } else {

@@ -16,26 +16,26 @@ export type FeedbackStatus =
   | 'resolved'  // 已处理
   | 'closed';   // 已关闭
 
-// 用户建议接口
+// 用户建议接口 - 与API响应完全匹配
 export interface UserFeedback {
-  id: string;
-  title: string;
-  description: string;
+  id: number;
+  userId: number;
   type: FeedbackType;
-  priority: FeedbackPriority;
+  title: string;
+  content: string;          // API返回的是content，不是description
+  contactInfo: string;
   status: FeedbackStatus;
-  userEmail?: string;
-  userName?: string;
-  userContact?: string;
-  attachments?: string[]; // 附件URL列表
-  tags?: string[];
-  adminReply?: string;
-  adminRepliedAt?: string;
-  adminRepliedBy?: string;
+  reply: string;            // API返回的是reply，不是adminReply
   createdAt: string;
-  updatedAt: string;
-  upvotes?: number; // 点赞数
-  downvotes?: number; // 点踩数
+  
+  // 兼容性字段（用于组件显示，需要从其他字段计算或默认值）
+  description?: string;     // 映射到content
+  userName?: string;        // 从contactInfo解析或设为默认值
+  userEmail?: string;       // 从contactInfo解析或设为默认值
+  adminReply?: string;      // 映射到reply
+  upvotes?: number;         // 默认值
+  downvotes?: number;       // 默认值
+  priority?: FeedbackPriority; // 默认值
 }
 
 // 建议提交表单数据 - 匹配后端SubmitFeedbackRequest
@@ -80,4 +80,23 @@ export interface AdminReplyData {
   feedbackId: string;
   reply: string;
   status: FeedbackStatus;
+}
+
+// 管理员处理反馈请求 - 匹配后端HandleFeedbackRequest
+export interface HandleFeedbackRequest {
+  feedbackId: number;
+  status: FeedbackStatus;
+  reply: string;
+}
+
+// 反馈详情响应 - 匹配后端GetFeedbackDetailResponse  
+export interface FeedbackDetailResponse {
+  userId: number;
+  type: FeedbackType;
+  title: string;
+  content: string;
+  contactInfo: string;
+  status: FeedbackStatus;
+  reply: string;
+  createdAt: string;
 }

@@ -203,6 +203,7 @@ src/
 ### 待解决问题
 - **用户注册功能**：需要检查和修复注册流程
 - **文件上传后端参数验证**：前端已完成枚举值映射和必需字段补全，但后端仍返回"参数错误"，需要进一步排查具体的参数验证规则
+- **反馈处理功能后端API**：前端字段映射已修复，但/feedback/handle仍返回"资源不存在"错误(code:200001)，需要clone后端代码分析API实现和参数要求
 
 ------
 
@@ -274,6 +275,8 @@ src/
 
 - `<YYYY-MM-DD>`：<改动摘要>；**影响面**：<受影响模块>；**回滚**：<回滚方式>；**相关**：<文件/PR/Issue>
 
+- 2025-08-31：修复反馈功能字段映射不匹配问题-完整匹配API响应格式；**影响面**：types/feedback.ts中UserFeedback接口更新为匹配API字段(content/reply/contactInfo)，FeedbackList.tsx修复9个字段引用(description→content, adminReply→reply, userName→contactInfo)，feedbackStore.ts修复过滤逻辑字段引用，移除不存在的adminRepliedAt字段，TypeScript编译通过；**回滚**：恢复原有字段名description/adminReply/userName，添加回adminRepliedAt字段引用；**相关**：types/feedback.ts:20-39，FeedbackList.tsx:299+377+384+388+396+406+409+431+304，feedbackStore.ts:188
+- 2025-08-31：修复反馈处理API类型不匹配问题-UserFeedback.id改为number类型；**影响面**：types/feedback.ts中UserFeedback接口id字段类型从string改为number，FeedbackList.tsx和FeedbackPage.tsx中投票和处理函数参数类型统一为number，移除handleFeedback调用中的Number()类型转换，解决反馈处理时feedbackId为0导致的"资源不存在"错误；**回滚**：恢复UserFeedback.id为string类型，添加回Number()转换调用；**相关**：types/feedback.ts:21，FeedbackList.tsx:44+102+125，FeedbackPage.tsx:63
 - 2025-08-31：完成用户注册功能-Tabs切换界面和完整验证流程；**影响面**：types/database.ts添加RegisterRequest接口，authStore.ts扩展注册方法和状态管理(isRegistering/registerError)，Login/index.tsx重构为Tab模式支持登录和注册，注册成功后自动登录并跳转首页，表单验证包含用户名格式、密码强度、确认密码一致性检查；**回滚**：移除RegisterRequest接口，删除authStore中注册相关方法和状态，恢复Login页面为单一登录表单；**相关**：types/database.ts:135-140,authStore.ts:141-179,Login/index.tsx完整重构
 - 2025-08-31：修复详情页面重复计数问题-添加防重复机制；**影响面**：DataDetailPage.tsx添加useRef防止同一ID重复调用API，优化依赖数组只保留id，直接调用store.getState()避免不必要的重渲染，清理未使用的allData变量；**回滚**：移除useRef和防重复逻辑，恢复allData依赖；**相关**：DataDetailPage.tsx:70-127行防重复逻辑，viewCountUpdated ref机制
 - 2025-08-31：修复数据详情页无法打开问题-恢复本地数据查找模式；**影响面**：DataDetailPage.tsx改为混合模式(先显示本地数据再后台调用API增加浏览次数)，移除formatFileSize未使用函数，优化错误处理避免直接跳转首页；**回滚**：恢复纯API调用模式，添加formatFileSize函数；**相关**：DataDetailPage.tsx:71-112行逻辑重构，从API调用改回本地store查找+后台API
