@@ -15,7 +15,9 @@ import {
   Row,
   Col,
   Empty,
-  Pagination
+  Pagination,
+  Form,
+  message
 } from 'antd';
 import {
   LikeOutlined,
@@ -26,6 +28,8 @@ import {
 } from '@ant-design/icons';
 import { UserFeedback, FeedbackType, FeedbackStatus, FeedbackPriority } from '../../types/feedback';
 import { MINING_BLUE_COLORS } from '../../config/theme';
+import { useAuthStore } from '../../store/authStore';
+import { apiService } from '../../services/api';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -37,7 +41,7 @@ interface FeedbackListProps {
   current?: number;
   pageSize?: number;
   onPageChange?: (page: number, size: number) => void;
-  onVote?: (id: string, type: 'up' | 'down') => void;
+  onVote?: (id: number, type: 'up' | 'down') => void;
   showAdminActions?: boolean;
 }
 
@@ -74,8 +78,14 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
   onVote,
   showAdminActions = false
 }) => {
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
+  
   const [selectedFeedback, setSelectedFeedback] = useState<UserFeedback | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
+  const [handleVisible, setHandleVisible] = useState(false);
+  const [handleLoading, setHandleLoading] = useState(false);
+  const [handleForm] = Form.useForm();
   const [filters, setFilters] = useState({
     type: undefined as FeedbackType | undefined,
     status: undefined as FeedbackStatus | undefined,
@@ -89,8 +99,46 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
   };
 
   // 处理投票
-  const handleVote = (id: string, type: 'up' | 'down') => {
+  const handleVote = (id: number, type: 'up' | 'down') => {
     onVote?.(id, type);
+  };
+
+  // 管理员处理反馈
+  const handleManageFeedback = (feedback: UserFeedback) => {
+    setSelectedFeedback(feedback);
+    handleForm.setFieldsValue({
+      status: feedback.status,
+      reply: feedback.reply || ''
+    });
+    setHandleVisible(true);
+  };
+
+  // 提交处理结果
+  const handleSubmitHandle = async () => {
+    if (!selectedFeedback) return;
+    
+    try {
+      setHandleLoading(true);
+      const values = await handleForm.validateFields();
+      
+      await apiService.handleFeedback(
+        selectedFeedback.id,
+        values.status,
+        values.reply
+      );
+      
+      message.success('反馈处理成功！');
+      setHandleVisible(false);
+      handleForm.resetFields();
+      
+      // 触发页面刷新或重新获取数据
+      window.location.reload();
+    } catch (error: any) {
+      console.error('处理反馈失败:', error);
+      message.error(`处理失败：${error.message || '未知错误'}`);
+    } finally {
+      setHandleLoading(false);
+    }
   };
 
   // 格式化时间
@@ -203,6 +251,17 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
                         {item.upvotes || 0}
                       </Button>
                     </Tooltip>
+                    {isAdmin && (
+                      <Tooltip title="处理反馈">
+                        <Button
+                          type="primary"
+                          size="small"
+                          onClick={() => handleManageFeedback(item)}
+                        >
+                          处理
+                        </Button>
+                      </Tooltip>
+                    )}
                   </Space>
                 ]}
               >
@@ -237,12 +296,12 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
                         ellipsis={{ rows: 2, expandable: false }} 
                         style={{ margin: '8px 0', color: '#666' }}
                       >
-                        {item.description}
+                        {item.content}
                       </Paragraph>
                       <Space size="large" style={{ fontSize: 12, color: '#999' }}>
                         <span>
                           <UserOutlined style={{ marginRight: 4 }} />
-                          {item.userName || '匿名用户'}
+                          {item.contactInfo || '匿名用户'}
                         </span>
                         <span>
                           <CalendarOutlined style={{ marginRight: 4 }} />
@@ -315,18 +374,18 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
             <div style={{ marginBottom: 16 }}>
               <Text strong>详细描述：</Text>
               <div style={{ marginTop: 8, padding: 12, background: '#f5f5f5', borderRadius: 6 }}>
-                {selectedFeedback.description}
+                {selectedFeedback.content}
               </div>
             </div>
             
             <Row gutter={16} style={{ marginBottom: 16 }}>
               <Col span={8}>
                 <Text strong>提交者：</Text>
-                <div>{selectedFeedback.userName || '匿名用户'}</div>
+                <div>{selectedFeedback.contactInfo || '匿名用户'}</div>
               </Col>
               <Col span={8}>
                 <Text strong>联系邮箱：</Text>
-                <div>{selectedFeedback.userEmail || '未提供'}</div>
+                <div>{selectedFeedback.contactInfo || '未提供'}</div>
               </Col>
               <Col span={8}>
                 <Text strong>提交时间：</Text>
@@ -334,7 +393,7 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
               </Col>
             </Row>
             
-            {selectedFeedback.adminReply && (
+            {selectedFeedback.reply && (
               <div style={{ marginTop: 16 }}>
                 <Text strong>管理员回复：</Text>
                 <div style={{ 
@@ -344,13 +403,58 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
                   borderRadius: 6,
                   border: '1px solid #91d5ff'
                 }}>
-                  {selectedFeedback.adminReply}
+                  {selectedFeedback.reply}
                 </div>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  回复时间：{selectedFeedback.adminRepliedAt && formatTime(selectedFeedback.adminRepliedAt)}
+                  回复时间：{formatTime(selectedFeedback.createdAt)}
                 </Text>
               </div>
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* 管理员处理反馈模态框 */}
+      <Modal
+        title="处理反馈"
+        open={handleVisible}
+        onCancel={() => setHandleVisible(false)}
+        onOk={handleSubmitHandle}
+        confirmLoading={handleLoading}
+        width={600}
+      >
+        {selectedFeedback && (
+          <div>
+            <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 6 }}>
+              <Text strong>反馈内容：</Text>
+              <div style={{ marginTop: 8 }}>{selectedFeedback.title}</div>
+              <div style={{ marginTop: 4, color: '#666' }}>{selectedFeedback.content}</div>
+            </div>
+            
+            <Form form={handleForm} layout="vertical">
+              <Form.Item
+                name="status"
+                label="处理状态"
+                rules={[{ required: true, message: '请选择处理状态' }]}
+              >
+                <Select placeholder="选择状态">
+                  <Option value="pending">待处理</Option>
+                  <Option value="resolved">已处理</Option>
+                  <Option value="closed">已关闭</Option>
+                </Select>
+              </Form.Item>
+              
+              <Form.Item
+                name="reply"
+                label="管理员回复"
+                rules={[{ required: true, message: '请输入处理回复' }]}
+              >
+                <Input.TextArea
+                  rows={4}
+                  placeholder="请输入处理结果和回复内容..."
+                />
+              </Form.Item>
+            </Form>
           </div>
         )}
       </Modal>

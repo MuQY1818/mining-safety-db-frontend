@@ -306,6 +306,29 @@ class ApiService {
     // await this.client.post('/user/logout');
   }
 
+  // 下载文件统计
+  async downloadFile(objectURL: string): Promise<void> {
+    try {
+      await this.client.get('/file/download', {
+        params: { objectURL }
+      });
+      console.log('✅ 下载统计成功');
+    } catch (error) {
+      console.warn('⚠️ 下载统计失败:', error);
+      // 统计失败不抛出错误，不影响实际下载
+    }
+  }
+
+  // 处理反馈
+  async handleFeedback(feedbackId: number, status: string, reply: string): Promise<void> {
+    const response = await this.client.post<ApiResponse<any>>('/feedback/handle', {
+      feedbackId,
+      status,
+      reply
+    });
+    return response.data.data;
+  }
+
   // 健康检查
   async healthCheck(): Promise<boolean> {
     try {

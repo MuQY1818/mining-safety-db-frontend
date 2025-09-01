@@ -213,15 +213,21 @@ const DataForm: React.FC<DataFormProps> = ({
         message.error('只能上传 PDF、图片、文档或文本格式的文件！');
         return false;
       }
-      const isLt10M = file.size / 1024 / 1024 < 10;
-      if (!isLt10M) {
-        message.error('文件大小不能超过 10MB！');
+      const isLt200M = file.size / 1024 / 1024 < 200;
+      if (!isLt200M) {
+        message.error('文件大小不能超过 200MB！');
         return false;
       }
       return true;
     },
     customRequest: async (options: any) => {
       const { file, onSuccess, onError, onProgress } = options;
+      
+      // 显示开始上传提示
+      const hideUploadingMessage = message.loading({
+        content: `正在上传 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)...`,
+        duration: 0 // 不自动消失
+      });
       
       try {
         console.log('📁 开始通过customRequest上传文件:', {
@@ -235,6 +241,9 @@ const DataForm: React.FC<DataFormProps> = ({
         
         console.log('✅ customRequest文件上传成功:', response);
         
+        // 关闭上传中提示
+        hideUploadingMessage();
+        
         // 验证响应数据
         if (!response || !response.url) {
           throw new Error('服务器返回数据不完整');
@@ -243,11 +252,25 @@ const DataForm: React.FC<DataFormProps> = ({
         // 上传成功，调用onSuccess并传入响应数据
         onSuccess(response, file);
         
-        message.success('文件上传成功！');
+        // 显示详细的成功提示
+        message.success({
+          content: `文件 "${file.name}" 上传成功！文件大小：${(file.size / 1024 / 1024).toFixed(2)}MB`,
+          duration: 3
+        });
       } catch (error: any) {
         console.error('❌ customRequest文件上传失败:', error);
+        
+        // 关闭上传中提示
+        hideUploadingMessage();
+        
         onError(error);
-        message.error(`文件上传失败: ${error.message || '未知错误'}`);
+        
+        // 显示详细的错误提示
+        const errorMessage = error.message || error.response?.data?.msg || '上传服务异常';
+        message.error({
+          content: `文件 "${file.name}" 上传失败：${errorMessage}`,
+          duration: 5
+        });
       }
     },
     maxCount: 1, // 限制只能上传一个文件

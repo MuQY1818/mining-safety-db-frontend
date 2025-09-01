@@ -60,7 +60,7 @@ const FeedbackPage: React.FC = () => {
   };
 
   // 处理投票
-  const handleVote = (id: string, type: 'up' | 'down') => {
+  const handleVote = (id: number, type: 'up' | 'down') => {
     voteFeedback(id, type);
   };
 

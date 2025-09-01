@@ -26,7 +26,7 @@ interface FeedbackState {
   // 数据操作
   fetchFeedbacks: (params?: any) => Promise<void>;
   submitFeedback: (data: FeedbackFormData) => Promise<void>;
-  voteFeedback: (id: string, type: 'up' | 'down') => Promise<void>;
+  voteFeedback: (id: number, type: 'up' | 'down') => Promise<void>;
   fetchStats: () => Promise<void>;
   applyFilters: () => void;
   clearFilters: () => void;
@@ -185,7 +185,7 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
       const term = filters.searchTerm.toLowerCase();
       filtered = filtered.filter(f => 
         f.title.toLowerCase().includes(term) ||
-        f.description.toLowerCase().includes(term)
+        f.content.toLowerCase().includes(term)
       );
     }
 
