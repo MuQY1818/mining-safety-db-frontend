@@ -8,7 +8,7 @@
 - **技术栈**：React 18+ + TypeScript、Ant Design v5、Zustand、React Query v5、Axios、SiliconFlow AI
 - **运行入口**：`npm start` 或见「5. 运行与调试」
 - **服务清单**：前端React应用（单体架构）
-- **后端代码仓库**：`E:\Code\Project\mining-db-server` （Spring Boot + MyBatis-Plus + MinIO）
+- **后端代码仓库**：`~/Code/Project/mining-db-server` （Spring Boot + MyBatis-Plus + MinIO）
 
 ## 2. 日期约定（必须遵守）
 - 所有日期一律通过系统命令获取，不得手填或猜测。
@@ -203,7 +203,7 @@ src/
 ### 待解决问题
 - **用户注册功能**：需要检查和修复注册流程
 - **文件上传后端参数验证**：前端已完成枚举值映射和必需字段补全，但后端仍返回"参数错误"，需要进一步排查具体的参数验证规则
-- **反馈处理功能后端API**：前端字段映射已修复，但/feedback/handle仍返回"资源不存在"错误(code:200001)，需要clone后端代码分析API实现和参数要求
+- **反馈处理功能后端BUG**：已分析后端代码，前端传参完全正确(feedbackId有效数字，状态pending→resolved，reply非空)，但后端FeedbackServiceImpl.handleFeedback()第114行feedbackMapper.selectById()仍返回null导致200001错误，疑似MyBatis-Plus查询或数据库连接问题，需要后端开发者检查mapper配置和数据库事务
 
 ------
 
@@ -275,6 +275,7 @@ src/
 
 - `<YYYY-MM-DD>`：<改动摘要>；**影响面**：<受影响模块>；**回滚**：<回滚方式>；**相关**：<文件/PR/Issue>
 
+- 2025-09-01：深度调试反馈处理API-确认为后端BUG需要后端修复；**影响面**：添加详细前端调试日志确认参数传递正确(feedbackId:31849487949893有效数字，status:resolved，reply:已处理)，后端FeedbackServiceImpl.handleFeedback()第114行selectById()异常返回null，前端已完成所有可能修复，待解决问题中标记为后端BUG需要后端开发者检查MyBatis-Plus配置；**回滚**：移除调试日志和getFeedbackDetail方法；**相关**：FeedbackList.tsx:107-132+139-146，api.ts:323-340，CLAUDE.md:206待解决问题更新
 - 2025-08-31：修复反馈功能字段映射不匹配问题-完整匹配API响应格式；**影响面**：types/feedback.ts中UserFeedback接口更新为匹配API字段(content/reply/contactInfo)，FeedbackList.tsx修复9个字段引用(description→content, adminReply→reply, userName→contactInfo)，feedbackStore.ts修复过滤逻辑字段引用，移除不存在的adminRepliedAt字段，TypeScript编译通过；**回滚**：恢复原有字段名description/adminReply/userName，添加回adminRepliedAt字段引用；**相关**：types/feedback.ts:20-39，FeedbackList.tsx:299+377+384+388+396+406+409+431+304，feedbackStore.ts:188
 - 2025-08-31：修复反馈处理API类型不匹配问题-UserFeedback.id改为number类型；**影响面**：types/feedback.ts中UserFeedback接口id字段类型从string改为number，FeedbackList.tsx和FeedbackPage.tsx中投票和处理函数参数类型统一为number，移除handleFeedback调用中的Number()类型转换，解决反馈处理时feedbackId为0导致的"资源不存在"错误；**回滚**：恢复UserFeedback.id为string类型，添加回Number()转换调用；**相关**：types/feedback.ts:21，FeedbackList.tsx:44+102+125，FeedbackPage.tsx:63
 - 2025-08-31：完成用户注册功能-Tabs切换界面和完整验证流程；**影响面**：types/database.ts添加RegisterRequest接口，authStore.ts扩展注册方法和状态管理(isRegistering/registerError)，Login/index.tsx重构为Tab模式支持登录和注册，注册成功后自动登录并跳转首页，表单验证包含用户名格式、密码强度、确认密码一致性检查；**回滚**：移除RegisterRequest接口，删除authStore中注册相关方法和状态，恢复Login页面为单一登录表单；**相关**：types/database.ts:135-140,authStore.ts:141-179,Login/index.tsx完整重构

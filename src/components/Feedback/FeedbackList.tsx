@@ -104,12 +104,30 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
   };
 
   // 管理员处理反馈
-  const handleManageFeedback = (feedback: UserFeedback) => {
-    setSelectedFeedback(feedback);
-    handleForm.setFieldsValue({
-      status: feedback.status,
-      reply: feedback.reply || ''
-    });
+  const handleManageFeedback = async (feedback: UserFeedback) => {
+    console.log('🔍 选中的反馈对象完整信息:', feedback);
+    console.log('🔍 反馈ID类型和值:', typeof feedback.id, feedback.id);
+    console.log('🔍 反馈对象的所有键:', Object.keys(feedback));
+    
+    try {
+      // 获取最新的反馈详情，确保状态是最新的
+      const latestFeedback = await apiService.getFeedbackDetail(feedback.id);
+      console.log('🔄 最新反馈数据:', latestFeedback);
+      
+      setSelectedFeedback({...feedback, ...latestFeedback});
+      handleForm.setFieldsValue({
+        status: latestFeedback.status,
+        reply: latestFeedback.reply || ''
+      });
+    } catch (error) {
+      console.warn('获取最新反馈详情失败，使用当前数据:', error);
+      setSelectedFeedback(feedback);
+      handleForm.setFieldsValue({
+        status: feedback.status,
+        reply: feedback.reply || ''
+      });
+    }
+    
     setHandleVisible(true);
   };
 
@@ -120,6 +138,28 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
     try {
       setHandleLoading(true);
       const values = await handleForm.validateFields();
+      
+      // 参数验证
+      if (!selectedFeedback.id || selectedFeedback.id <= 0) {
+        message.error('无效的反馈ID');
+        return;
+      }
+      
+      if (!values.status || !values.reply?.trim()) {
+        message.error('请填写完整的处理状态和回复内容');
+        return;
+      }
+      
+      // 让后端来验证状态，前端不做状态限制
+      
+      console.log('🔧 准备处理反馈 - 详细信息:', {
+        'selectedFeedback完整对象': selectedFeedback,
+        'feedbackId值': selectedFeedback.id,
+        'feedbackId类型': typeof selectedFeedback.id,
+        'status值': values.status,
+        'reply值': values.reply,
+        '表单values': values
+      });
       
       await apiService.handleFeedback(
         selectedFeedback.id,
@@ -226,6 +266,14 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
           loading={loading}
           dataSource={feedbacks}
           renderItem={(item) => {
+            // 调试：输出每个反馈项的数据结构
+            console.log('📋 反馈列表项数据结构:', {
+              'item完整对象': item,
+              'item.id': item.id,
+              'id类型': typeof item.id,
+              '所有键': Object.keys(item)
+            });
+            
             const typeConf = getTypeConfig(item.type);
             const priorityConf = getPriorityConfig(item.priority);
             const statusConf = getStatusConfig(item.status);

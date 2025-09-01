@@ -319,13 +319,32 @@ class ApiService {
     }
   }
 
+  // 获取反馈详情
+  async getFeedbackDetail(feedbackId: number): Promise<any> {
+    const response = await this.client.get<ApiResponse<any>>('/feedback', {
+      params: { feedbackId }
+    });
+    return response.data.data;
+  }
+
   // 处理反馈
   async handleFeedback(feedbackId: number, status: string, reply: string): Promise<void> {
+    console.log('🔧 处理反馈请求参数:', { feedbackId, status, reply });
+    console.log('🔍 feedbackId详细信息:', {
+      '原始值': feedbackId,
+      '类型': typeof feedbackId,
+      '字符串形式': feedbackId.toString(),
+      '是否安全整数': Number.isSafeInteger(feedbackId),
+      'JSON序列化后': JSON.stringify(feedbackId)
+    });
+    
     const response = await this.client.post<ApiResponse<any>>('/feedback/handle', {
-      feedbackId,
-      status,
+      feedbackId: Number(feedbackId), // 确保为数字类型
+      status, // 后端FeedbackStatusEnum会自动映射字符串值
       reply
     });
+    
+    console.log('✅ 反馈处理成功:', response.data);
     return response.data.data;
   }
 

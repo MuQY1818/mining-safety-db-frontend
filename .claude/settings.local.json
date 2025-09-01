@@ -54,7 +54,16 @@
       "mcp__puppeteer__puppeteer_fill",
       "mcp__puppeteer__puppeteer_evaluate",
       "mcp__thinking__sequentialthinking",
-      "mcp__playwright__browser_select_option"
+      "mcp__playwright__browser_select_option",
+      "mcp__filesystem__list_directory",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/service/impl/**)",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/entity/**)",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/constants/**)",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/constants/**)",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/entity/**)",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/resources/**)",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/constants/**)",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/resources/**)"
     ],
     "deny": [],
     "ask": [],
