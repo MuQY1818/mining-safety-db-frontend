@@ -11,7 +11,8 @@ import {
   Col,
   DatePicker,
   InputNumber,
-  Space
+  Space,
+  App
 } from 'antd';
 import dayjs from 'dayjs';
 import {
@@ -71,6 +72,10 @@ const DataForm: React.FC<DataFormProps> = ({
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  
+  // 使用Antd App组件的notification API
+  const { notification: appNotification } = App.useApp();
+
 
   // 当初始数据变化时，更新表单
   useEffect(() => {
@@ -201,6 +206,26 @@ const DataForm: React.FC<DataFormProps> = ({
   const uploadProps = {
     fileList,
     onChange: ({ fileList: newFileList }: { fileList: UploadFile[] }) => {
+      console.log('📁 文件列表变化:', newFileList.map(f => ({
+        name: f.name,
+        status: f.status,
+        uid: f.uid
+      })));
+      
+      // 自动删除验证失败的文件（status为error或undefined的文件）
+      const validFiles = newFileList.filter(file => 
+        file.status !== 'error' && file.status !== undefined
+      );
+      
+      if (validFiles.length !== newFileList.length) {
+        console.log('🗑️ 自动删除验证失败的文件，删除数量:', newFileList.length - validFiles.length);
+        // 延迟一小段时间再删除，确保用户能看到错误信息
+        setTimeout(() => {
+          setFileList(validFiles);
+        }, 2000); // 2秒后自动删除失败文件
+        return;
+      }
+      
       setFileList(newFileList);
     },
     beforeUpload: (file: File) => {
@@ -215,12 +240,25 @@ const DataForm: React.FC<DataFormProps> = ({
       if (!isValidType) {
         // 提供更详细的错误信息，包括支持的格式
         const supportedFormats = [
-          'PDF文档', 'Word文档(.doc/.docx)', 
-          'MP4视频', 'AVI视频',
-          'MP3音频', 'WAV音频',
-          'JPEG图片', 'PNG图片', 'GIF图片'
+          'PDF文档(.pdf)', 
+          'Office文档(.doc/.docx/.xls/.xlsx/.ppt/.pptx)', 
+          '文本文档(.txt/.rtf/.odt)',
+          '视频文件(.mp4/.avi/.mov/.wmv/.flv/.webm/.3gp)', 
+          '音频文件(.mp3/.wav/.ogg/.aac)',
+          '图片文件(.jpg/.jpeg/.png/.gif/.webp/.bmp/.svg/.tiff)'
         ].join('、');
-        message.error(`文件格式不支持！当前文件类型：${file.type || '未识别'}，支持的格式：${supportedFormats}`);
+        appNotification.error({
+          message: '❌ 文件格式不支持！',
+          description: (
+            <div>
+              <p><strong>当前文件类型：</strong>{file.type || '未识别'}</p>
+              <p><strong>📋 支持的格式：</strong></p>
+              <p>{supportedFormats}</p>
+            </div>
+          ),
+          duration: 8,
+          placement: 'topRight',
+        });
         return false;
       }
 
@@ -228,7 +266,18 @@ const DataForm: React.FC<DataFormProps> = ({
       const maxSizeMB = DEFAULT_UPLOAD_CONFIG.maxSize / 1024 / 1024;
       const fileSizeMB = file.size / 1024 / 1024;
       if (file.size > DEFAULT_UPLOAD_CONFIG.maxSize) {
-        message.error(`文件大小超限！当前：${fileSizeMB.toFixed(2)}MB，最大允许：${maxSizeMB}MB`);
+        appNotification.error({
+          message: '📏 文件大小超出限制！',
+          description: (
+            <div>
+              <p><strong>当前文件：</strong>{fileSizeMB.toFixed(2)}MB</p>
+              <p><strong>最大允许：</strong>{maxSizeMB}MB</p>
+              <p><strong>💡 建议：</strong>请选择小于500MB的文件</p>
+            </div>
+          ),
+          duration: 6,
+          placement: 'topRight',
+        });
         return false;
       }
 
@@ -236,7 +285,7 @@ const DataForm: React.FC<DataFormProps> = ({
       return true;
     },
     customRequest: async (options: any) => {
-      const { file, onSuccess, onError, onProgress } = options;
+      const { file, onSuccess, onError } = options;
       
       // 显示开始上传提示
       const hideUploadingMessage = message.loading({
@@ -268,9 +317,17 @@ const DataForm: React.FC<DataFormProps> = ({
         onSuccess(response, file);
         
         // 显示详细的成功提示
-        message.success({
-          content: `文件 "${file.name}" 上传成功！文件大小：${(file.size / 1024 / 1024).toFixed(2)}MB`,
-          duration: 3
+        appNotification.success({
+          message: '🎉 文件上传成功！',
+          description: (
+            <div>
+              <p><strong>📄 文件名：</strong>{file.name}</p>
+              <p><strong>📏 文件大小：</strong>{(file.size / 1024 / 1024).toFixed(2)}MB</p>
+              <p><strong>✅ 状态：</strong>已准备就绪，可以提交表单</p>
+            </div>
+          ),
+          duration: 4,
+          placement: 'topRight',
         });
       } catch (error: any) {
         console.error('❌ customRequest文件上传失败:', error);
@@ -280,11 +337,23 @@ const DataForm: React.FC<DataFormProps> = ({
         
         onError(error);
         
+        // 上传失败时自动从文件列表中删除
+        setFileList(prev => prev.filter(item => item.uid !== file.uid));
+        
         // 显示详细的错误提示
         const errorMessage = error.message || error.response?.data?.msg || '上传服务异常';
-        message.error({
-          content: `文件 "${file.name}" 上传失败：${errorMessage}`,
-          duration: 5
+        appNotification.error({
+          message: '❌ 文件上传失败！',
+          description: (
+            <div>
+              <p><strong>📄 文件名：</strong>{file.name}</p>
+              <p><strong>📏 文件大小：</strong>{(file.size / 1024 / 1024).toFixed(2)}MB</p>
+              <p><strong>🔍 错误原因：</strong>{errorMessage}</p>
+              <p><strong>💡 建议：</strong>文件已自动删除，请重新选择文件上传</p>
+            </div>
+          ),
+          duration: 8,
+          placement: 'topRight',
         });
       }
     },
@@ -447,7 +516,7 @@ const DataForm: React.FC<DataFormProps> = ({
           <Form.Item
             name="file"
             label="上传文件"
-            extra="支持 PDF、图片、文档格式，文件大小不超过 10MB"
+            extra="支持 PDF、Office文档、图片、视频格式，文件大小不超过 500MB"
           >
             <Upload {...uploadProps}>
               <Button icon={<UploadOutlined />}>选择文件</Button>
