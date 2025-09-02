@@ -69,7 +69,12 @@ export class ChatHistoryService {
       
       console.log('✅ [chatHistoryService] getSessions API响应成功');
       console.log('📡 [chatHistoryService] 响应状态:', response.status);
-      console.log('📡 [chatHistoryService] 响应数据:', JSON.stringify(response.data, null, 2));
+      console.log('📡 [chatHistoryService] 响应数据概要:', {
+        code: response.data.code,
+        msg: response.data.msg,
+        hasData: !!response.data.data,
+        itemCount: response.data.data?.list?.length || response.data.data?.total || 0
+      });
       
       const result = response.data.data;
       console.log('🔍 [chatHistoryService] 解析结果分析:', {
@@ -166,7 +171,12 @@ export class ChatHistoryService {
       
       console.log('✅ [chatHistoryService] getMessages API响应成功');
       console.log('📡 [chatHistoryService] 响应状态:', response.status);
-      console.log('📡 [chatHistoryService] 响应数据:', JSON.stringify(response.data, null, 2));
+      console.log('📡 [chatHistoryService] 响应数据概要:', {
+        code: response.data.code,
+        msg: response.data.msg,
+        hasData: !!response.data.data,
+        itemCount: response.data.data?.list?.length || response.data.data?.total || 0
+      });
       
       const result = response.data.data;
       console.log('🔍 [chatHistoryService] 解析结果分析:', {
