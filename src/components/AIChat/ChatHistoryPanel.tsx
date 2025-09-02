@@ -153,7 +153,7 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
                 <ClockCircleOutlined style={{ marginRight: 4 }} />
                 {formatTime(session.updatedAt)}
               </span>
-              <span>{session.messages.length} 条消息</span>
+              <span>{session.messageCount || 0} 条消息</span>
             </div>
           }
         />

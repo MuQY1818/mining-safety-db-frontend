@@ -36,12 +36,12 @@ export const API_ENDPOINTS = {
 
   // AI聊天相关接口 - 对应后端 ChatController
   CHAT: {
-    CREATE_SESSION: '/api/chat',       // POST - 创建聊天会话
-    GET_SESSIONS: '/api/chat',         // GET - 获取会话列表
-    UPDATE_SESSION: '/api/chat',       // PUT - 更新会话信息
-    DELETE_SESSION: '/api/chat',       // DELETE - 删除会话
-    SAVE_MESSAGE: '/api/chat/messages', // POST - 保存单个消息
-    GET_MESSAGES: '/api/chat/messages' // GET - 获取会话消息历史
+    CREATE_SESSION: '/chat',           // POST - 创建聊天会话
+    GET_SESSIONS: '/chat',             // GET - 获取会话列表
+    UPDATE_SESSION: '/chat',           // PUT - 更新会话信息
+    DELETE_SESSION: '/chat',           // DELETE - 删除会话
+    SAVE_MESSAGE: '/chat/messages',    // POST - 保存单个消息
+    GET_MESSAGES: '/chat/messages'     // GET - 获取会话消息历史
   }
 } as const;
 

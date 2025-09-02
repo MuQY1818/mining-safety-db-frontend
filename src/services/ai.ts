@@ -17,16 +17,50 @@ export const aiApi = {
     message: string,
     sessionId: string,
     onChunk: (chunk: string) => void,
-    onComplete: () => void,
+    onComplete: () => void | Promise<void>,
     onError: (error: string) => void
   ): Promise<void> => {
     try {
+      console.log('🔗 [aiApi] 准备调用siliconFlowService.chatStream');
+      console.log('🔗 [aiApi] onComplete回调类型:', typeof onComplete);
+      
+      // 创建回调函数并添加调试
+      const wrappedOnComplete = async () => {
+        console.log('🔗 [aiApi] =====================================');
+        console.log('🔗 [aiApi] 收到siliconFlow的onComplete回调！！！');
+        console.log('🔗 [aiApi] wrappedOnComplete被调用了！');
+        console.log('🔗 [aiApi] 准备调用chatStore的onComplete');
+        console.log('🔗 [aiApi] onComplete回调类型检查:', typeof onComplete);
+        console.log('🔗 [aiApi] onComplete回调引用:', onComplete);
+        try {
+          console.log('🔗 [aiApi] 开始执行chatStore的onComplete...');
+          const result = onComplete();
+          console.log('🔗 [aiApi] onComplete执行结果:', result);
+          console.log('🔗 [aiApi] 结果类型:', typeof result);
+          if (result && typeof result.then === 'function') {
+            console.log('🔗 [aiApi] 检测到Promise，开始等待异步执行');
+            const awaitResult = await result;
+            console.log('🔗 [aiApi] chatStore的onComplete异步执行完成，结果:', awaitResult);
+          } else {
+            console.log('🔗 [aiApi] chatStore的onComplete同步执行完成');
+          }
+          console.log('🔗 [aiApi] wrappedOnComplete执行完毕！');
+          console.log('🔗 [aiApi] =====================================');
+        } catch (error) {
+          console.error('🔗 [aiApi] chatStore的onComplete回调执行失败:', error);
+          console.error('🔗 [aiApi] 错误堆栈:', error instanceof Error ? error.stack : 'No stack trace');
+          throw error; // 重新抛出错误以便siliconflow.ts能捕获
+        }
+      };
+      
+      console.log('🔗 [aiApi] 准备传递给siliconFlow的回调函数:', typeof wrappedOnComplete);
+      
       // 使用硅基流动服务进行流式对话
       await siliconFlowService.chatStream(
         message,
         [], // 历史消息，暂时为空
         onChunk,
-        onComplete,
+        wrappedOnComplete,
         onError
       );
     } catch (error) {
