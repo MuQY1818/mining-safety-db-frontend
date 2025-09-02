@@ -398,6 +398,16 @@ export const useChatStore = create<ChatState>()(
             }
           }
 
+          // 检查是否已经有缓存的消息，避免重复API调用
+          if (session.messages && session.messages.length > 0) {
+            console.log('✨ [chatStore] 使用缓存消息，跳过API调用，消息数量:', session.messages.length);
+            set({
+              currentSession: session,
+              isLoading: false
+            });
+            return; // 直接返回，不需要API调用
+          }
+
           console.log('🔄 [chatStore] 开始加载会话消息，sessionId:', sessionId);
           
           // 重试机制：尝试加载会话消息
@@ -417,12 +427,7 @@ export const useChatStore = create<ChatState>()(
                 console.warn('⚠️ [chatStore] sessionId超出JavaScript安全整数范围:', sessionIdNum);
               }
               
-              console.log('🔍 [chatStore] sessionId验证通过:', {
-                original: sessionId,
-                parsed: sessionIdNum,
-                isValidNumber: !isNaN(sessionIdNum),
-                isSafeInteger: Number.isSafeInteger(sessionIdNum)
-              });
+              console.log('🔍 [chatStore] sessionId验证通过:', sessionId);
               
               messagesData = await chatHistoryService.getMessages(sessionIdNum, {
                 page: 1,
@@ -430,10 +435,12 @@ export const useChatStore = create<ChatState>()(
                 order: 'asc'
               });
               
-              // 🔍 调试：检查API响应格式
-              if (process.env.NODE_ENV === 'development') {
-                console.log('🔍 [chatStore] API响应数据:', JSON.stringify(messagesData, null, 2));
-              }
+              // 🔍 调试：检查API响应格式（简化版）
+              console.log('🔍 [chatStore] API响应:', {
+                hasData: !!messagesData,
+                messageCount: messagesData?.list?.length || 0,
+                total: messagesData?.total || 0
+              });
               
               // 验证响应格式 - 修复data为null的情况
               if (!messagesData || messagesData === null) {
