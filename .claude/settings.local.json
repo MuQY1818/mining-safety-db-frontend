@@ -63,7 +63,12 @@
       "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/entity/**)",
       "Read(/home/server/Code/Project/mining-db-server/src/main/resources/**)",
       "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/constants/**)",
-      "Read(/home/server/Code/Project/mining-db-server/src/main/resources/**)"
+      "Read(/home/server/Code/Project/mining-db-server/src/main/resources/**)",
+      "Bash(git commit:*)",
+      "Bash(node:*)",
+      "Bash(npx playwright install:*)",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/controller/**)",
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/dto/request/**)"
     ],
     "deny": [],
     "ask": [],

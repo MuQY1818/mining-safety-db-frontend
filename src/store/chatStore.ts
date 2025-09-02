@@ -66,26 +66,74 @@ const convertBackendMessage = (backendMessage: BackendChatMessage, sessionId: st
 const loadUserData = (userId: number): Partial<ChatState> => {
   try {
     const key = `chat-store-user-${userId}`;
+    console.log('🔍 [loadUserData] 尝试加载localStorage数据，key:', key);
     const stored = localStorage.getItem(key);
+    console.log('🔍 [loadUserData] localStorage原始数据:', stored ? stored.substring(0, 200) + '...' : 'null');
+    
     if (stored) {
       const data = JSON.parse(stored);
+      console.log('🔍 [loadUserData] 解析后的数据结构:', {
+        hasData: !!data,
+        hasSessions: !!data.sessions,
+        sessionsCount: data.sessions?.length || 0,
+        hasCurrentSession: !!data.currentSession,
+        currentSessionId: data.currentSession?.id,
+        dataKeys: Object.keys(data)
+      });
+      
+      // 恢复Date对象
+      if (data.sessions) {
+        data.sessions = data.sessions.map((session: any) => ({
+          ...session,
+          createdAt: new Date(session.createdAt),
+          updatedAt: new Date(session.updatedAt),
+          messages: session.messages?.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          })) || []
+        }));
+      }
+      if (data.currentSession) {
+        data.currentSession = {
+          ...data.currentSession,
+          createdAt: new Date(data.currentSession.createdAt),
+          updatedAt: new Date(data.currentSession.updatedAt),
+          messages: data.currentSession.messages?.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          })) || []
+        };
+      }
+      
       return {
         sessions: data.sessions || [],
         currentSession: data.currentSession || null
       };
     }
   } catch (error) {
-    console.error('加载用户聊天数据失败:', error);
+    console.error('❌ [loadUserData] 加载用户聊天数据失败:', error);
   }
+  console.log('📭 [loadUserData] 返回空数据');
   return { sessions: [], currentSession: null };
 };
 
 const saveUserData = (userId: number, data: { sessions: ChatSession[]; currentSession: ChatSession | null }) => {
   try {
     const key = `chat-store-user-${userId}`;
-    localStorage.setItem(key, JSON.stringify(data));
+    console.log('💾 [saveUserData] 保存用户数据，key:', key);
+    console.log('💾 [saveUserData] 保存数据结构:', {
+      sessionsCount: data.sessions?.length || 0,
+      hasCurrentSession: !!data.currentSession,
+      currentSessionId: data.currentSession?.id,
+      currentSessionMessageCount: data.currentSession?.messages?.length || 0
+    });
+    
+    const serialized = JSON.stringify(data);
+    console.log('💾 [saveUserData] 序列化数据大小:', serialized.length, '字符');
+    localStorage.setItem(key, serialized);
+    console.log('✅ [saveUserData] 数据保存成功');
   } catch (error) {
-    console.error('保存用户聊天数据失败:', error);
+    console.error('❌ [saveUserData] 保存用户聊天数据失败:', error);
   }
 };
 
@@ -102,15 +150,190 @@ export const useChatStore = create<ChatState>()(
 
       // 初始化 - 从后端加载会话列表
       initialize: async () => {
-        if (get().isInitialized) return;
+        const currentState = get();
+        console.log('🎯 [chatStore] initialize方法被调用，当前状态:', {
+          isInitialized: currentState.isInitialized,
+          isLoading: currentState.isLoading,
+          sessionsCount: currentState.sessions.length,
+          hasCurrentSession: !!currentState.currentSession
+        });
+        
+        // 防止重复初始化
+        if (currentState.isInitialized && !currentState.isLoading) {
+          console.log('⚠️ [chatStore] 已经初始化过，跳过重复初始化');
+          return;
+        }
+
+        console.log('🚀 [chatStore] 开始初始化聊天存储');
 
         try {
           set({ isLoading: true, error: null });
-          await get().loadSessions();
+          
+          // 获取当前登录用户ID
+          let currentUserId: number;
+          try {
+            currentUserId = getCurrentUserId();
+            console.log('🚀 [chatStore] 当前用户ID:', currentUserId);
+            console.log('🚀 [chatStore] 用户认证状态:', useAuthStore.getState().isAuthenticated);
+            console.log('🚀 [chatStore] 用户信息:', JSON.stringify(useAuthStore.getState().user, null, 2));
+          } catch (userError) {
+            console.error('❌ [chatStore] 获取用户ID失败:', userError);
+            console.error('❌ [chatStore] authStore状态:', JSON.stringify(useAuthStore.getState(), null, 2));
+            set({ 
+              error: '用户未登录或登录过期',
+              isLoading: false,
+              isInitialized: false 
+            });
+            return;
+          }
+
+          // 首先加载用户的本地数据（用于快速显示）
+          const userData = loadUserData(currentUserId);
+          console.log('🔍 [chatStore] 本地数据加载结果:', {
+            hasUserData: !!userData,
+            sessionsCount: userData.sessions?.length || 0,
+            currentSessionId: userData.currentSession?.id,
+            localStorageKey: `chat-store-user-${currentUserId}`
+          });
+          
+          if (userData.sessions && userData.sessions.length > 0) {
+            console.log('🚀 [chatStore] 加载本地用户数据，会话数量:', userData.sessions.length);
+            console.log('🚀 [chatStore] 本地会话列表:', userData.sessions.map(s => ({
+              id: s.id,
+              title: s.title,
+              messageCount: s.messages?.length || 0
+            })));
+            set(state => ({
+              ...state,
+              sessions: userData.sessions || [],
+              currentSession: userData.currentSession || null
+            }));
+          } else {
+            console.log('📭 [chatStore] 没有找到本地用户数据');
+          }
+
+          // 然后从后端加载最新数据并合并
+          console.log('🚀 [chatStore] 开始从后端加载会话列表');
+          try {
+            console.log('📡 [chatStore] 调用getSessions API，参数:', { page: 1, pageSize: 20, order: 'desc' });
+            const sessionsData = await chatHistoryService.getSessions({
+              page: 1,
+              pageSize: 20,
+              order: 'desc'
+            });
+            
+            console.log('📡 [chatStore] getSessions API原始响应:', JSON.stringify(sessionsData, null, 2));
+            console.log('🔍 [chatStore] 响应数据分析:', {
+              hasData: !!sessionsData,
+              hasListField: !!sessionsData?.list,
+              listLength: sessionsData?.list?.length || 0,
+              totalCount: sessionsData?.total || 0,
+              responseFields: Object.keys(sessionsData || {})
+            });
+            
+            const backendSessions = sessionsData.list.map(convertBackendSession);
+            console.log('✅ [chatStore] 后端会话加载成功，数量:', backendSessions.length);
+            console.log('🔍 [chatStore] 转换后的会话列表:', backendSessions.map(s => ({
+              id: s.id,
+              title: s.title,
+              userId: s.userId,
+              messageCount: s.messageCount,
+              messagesLength: s.messages?.length || 0
+            })));
+            
+            // 合并本地和后端数据，优先使用后端数据
+            const mergedSessions = backendSessions.length > 0 ? backendSessions : userData.sessions || [];
+            
+            set(state => ({
+              ...state,
+              sessions: mergedSessions,
+              // 如果当前会话不在新的会话列表中，清除当前会话
+              currentSession: mergedSessions.find(s => s.id === state.currentSession?.id) || null
+            }));
+            
+            // 保存更新后的数据到localStorage
+            const finalState = get();
+            saveUserData(currentUserId, {
+              sessions: finalState.sessions,
+              currentSession: finalState.currentSession
+            });
+            
+          } catch (loadError) {
+            console.error('❌ [chatStore] 从后端加载会话失败:', loadError);
+            
+            // 分析错误类型
+            let errorMessage = '加载会话历史失败';
+            if (loadError && typeof loadError === 'object') {
+              const error = loadError as any;
+              if (error.response?.status === 401) {
+                errorMessage = '用户认证失效，请重新登录';
+              } else if (error.response?.status === 404) {
+                errorMessage = '会话接口不存在';
+              } else if (error.response?.status >= 500) {
+                errorMessage = '服务器错误，请稍后再试';
+              } else if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
+                errorMessage = '网络连接失败，请检查网络';
+              }
+            }
+            
+            console.warn('⚠️ [chatStore] 使用本地数据，错误类型:', errorMessage);
+            
+            // 如果后端加载失败，保留本地数据
+            if (!userData.sessions || userData.sessions.length === 0) {
+              console.log('📝 [chatStore] 无本地数据，创建空状态');
+              set(state => ({
+                ...state,
+                sessions: [],
+                currentSession: null,
+                error: `${errorMessage}（将在网络恢复后自动重试）`
+              }));
+            } else {
+              console.log('📝 [chatStore] 使用本地缓存数据');
+              set(state => ({
+                ...state,
+                error: `${errorMessage}（使用本地缓存数据）`
+              }));
+            }
+          }
+
+          // 如果有当前会话，为其加载消息内容
+          const currentState = get();
+          console.log('🔄 [chatStore] 检查是否需要加载当前会话消息:', {
+            hasCurrentSession: !!currentState.currentSession,
+            currentSessionId: currentState.currentSession?.id,
+            currentSessionMessageCount: currentState.currentSession?.messages?.length || 0
+          });
+          
+          if (currentState.currentSession) {
+            console.log('🔄 [chatStore] 检测到当前会话，开始加载其消息:', currentState.currentSession.id);
+            try {
+              console.log('📡 [chatStore] 调用setCurrentSession加载消息');
+              await get().setCurrentSession(currentState.currentSession.id);
+              const updatedState = get();
+              console.log('✅ [chatStore] 当前会话消息加载完成，消息数量:', updatedState.currentSession?.messages?.length || 0);
+            } catch (messageLoadError) {
+              console.error('❌ [chatStore] 加载当前会话消息失败:', messageLoadError);
+              console.error('❌ [chatStore] 错误详情:', messageLoadError instanceof Error ? messageLoadError.stack : 'Unknown error');
+              // 即使消息加载失败，也要继续初始化
+            }
+          } else {
+            console.log('📭 [chatStore] 无当前会话，跳过消息加载');
+          }
+
           set({ isInitialized: true });
+          const finalState = get();
+          console.log('✅ [chatStore] 初始化完成，会话数量:', finalState.sessions.length);
+          if (finalState.currentSession) {
+            console.log('✅ [chatStore] 当前会话消息数量:', finalState.currentSession.messages.length);
+          }
+
         } catch (error) {
-          console.error('初始化聊天存储失败:', error);
-          set({ error: '初始化失败' });
+          console.error('❌ [chatStore] 初始化聊天存储失败:', error);
+          const errorMessage = error instanceof Error ? error.message : '初始化失败';
+          set({ 
+            error: errorMessage,
+            isInitialized: false 
+          });
         } finally {
           set({ isLoading: false });
         }
@@ -159,36 +382,120 @@ export const useChatStore = create<ChatState>()(
 
       // 设置当前会话并加载消息
       setCurrentSession: async (sessionId: string) => {
+        console.log('🔄 [chatStore] 开始切换到会话:', sessionId);
+        
         try {
           set({ isLoading: true, error: null });
 
           let session = get().sessions.find(s => s.id === sessionId);
           if (!session) {
+            console.log('🔄 [chatStore] 本地未找到会话，重新加载会话列表');
             // 如果本地没有会话，先从会话列表重新加载
             await get().loadSessions();
             session = get().sessions.find(s => s.id === sessionId);
             if (!session) {
-              throw new Error('会话不存在');
+              throw new Error(`会话 ${sessionId} 不存在或已被删除`);
             }
           }
 
-          // 加载会话消息
-          const messagesData = await chatHistoryService.getMessages(parseInt(sessionId), {
-            pageSize: 100,
-            order: 'asc'
-          });
+          console.log('🔄 [chatStore] 开始加载会话消息，sessionId:', sessionId);
+          
+          // 重试机制：尝试加载会话消息
+          let messagesData: Awaited<ReturnType<typeof chatHistoryService.getMessages>>;
+          let retryCount = 0;
+          const maxRetries = 2;
+          
+          while (retryCount <= maxRetries) {
+            try {
+              const sessionIdNum = parseInt(sessionId);
+              if (isNaN(sessionIdNum)) {
+                throw new Error(`无效的会话ID: ${sessionId}`);
+              }
+              
+              // 检查sessionId是否超出安全范围
+              if (sessionIdNum > Number.MAX_SAFE_INTEGER) {
+                console.warn('⚠️ [chatStore] sessionId超出JavaScript安全整数范围:', sessionIdNum);
+              }
+              
+              console.log('🔍 [chatStore] sessionId验证通过:', {
+                original: sessionId,
+                parsed: sessionIdNum,
+                isValidNumber: !isNaN(sessionIdNum),
+                isSafeInteger: Number.isSafeInteger(sessionIdNum)
+              });
+              
+              messagesData = await chatHistoryService.getMessages(sessionIdNum, {
+                page: 1,
+                pageSize: 20,
+                order: 'asc'
+              });
+              
+              // 🔍 调试：检查API响应格式
+              if (process.env.NODE_ENV === 'development') {
+                console.log('🔍 [chatStore] API响应数据:', JSON.stringify(messagesData, null, 2));
+              }
+              
+              // 验证响应格式 - 修复data为null的情况
+              if (!messagesData || messagesData === null) {
+                console.warn('⚠️ [chatStore] API返回data为null，可能是会话没有消息或后端查询失败');
+                messagesData = { list: [], total: 0, page: 1, pageSize: 100 };
+              } else if (typeof messagesData !== 'object') {
+                throw new Error('API响应格式错误：响应不是对象');
+              } else if (!messagesData.list) {
+                console.warn('⚠️ [chatStore] API响应缺少list字段，尝试兼容处理');
+                // 尝试兼容不同的响应格式
+                if (Array.isArray(messagesData)) {
+                  messagesData = { list: messagesData, total: messagesData.length, page: 1, pageSize: 100 };
+                } else {
+                  // 如果没有消息，创建空的响应
+                  messagesData = { list: [], total: 0, page: 1, pageSize: 100 };
+                }
+              }
+              
+              break; // 成功则跳出重试循环
+            } catch (apiError) {
+              retryCount++;
+              console.warn(`⚠️ [chatStore] 加载消息失败 (尝试 ${retryCount}/${maxRetries + 1}):`, apiError);
+              
+              if (retryCount > maxRetries) {
+                throw apiError; // 超过重试次数则抛出错误
+              }
+              
+              // 等待1秒后重试
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
 
-          const messages = messagesData.list.map(msg => convertBackendMessage(msg, sessionId));
+          const messages = messagesData!.list.map((msg: BackendChatMessage) => convertBackendMessage(msg, sessionId));
           const updatedSession = { ...session, messages };
+
+          console.log('✅ [chatStore] 会话切换成功，消息数量:', messages.length);
 
           set(state => ({
             currentSession: updatedSession,
             sessions: state.sessions.map(s => s.id === sessionId ? updatedSession : s),
             isLoading: false
           }));
+
+          // 保存用户数据
+          try {
+            const currentState = get();
+            saveUserData(getCurrentUserId(), {
+              sessions: currentState.sessions,
+              currentSession: currentState.currentSession
+            });
+          } catch (saveError) {
+            console.warn('⚠️ [chatStore] 保存用户数据失败:', saveError);
+          }
+
         } catch (error) {
-          console.error('设置当前会话失败:', error);
-          set({ error: '加载会话失败', isLoading: false });
+          console.error('❌ [chatStore] 设置当前会话失败:', error);
+          const errorMessage = error instanceof Error ? error.message : '加载会话失败';
+          set({ 
+            error: errorMessage,
+            isLoading: false,
+            currentSession: null 
+          });
         }
       },
 
@@ -256,8 +563,9 @@ export const useChatStore = create<ChatState>()(
         }
       }));
 
-      // 获取所有消息用于AI对话
-      const allMessages = [...currentSession.messages, userMessage];
+      // 获取所有消息用于AI对话（暂时不需要历史消息，直接使用单条消息）
+      
+      console.log('🎯 [chatStore] 开始调用aiApi.chatStream');
       
       // 使用流式响应
       await aiApi.chatStream(
@@ -265,57 +573,136 @@ export const useChatStore = create<ChatState>()(
         currentSession.id,
         // onChunk - 处理流式数据
         (chunk: string) => {
-          set(state => ({
-            sessions: state.sessions.map(session =>
-              session.id === currentSession.id
-                ? {
-                    ...session,
-                    messages: session.messages.map(msg =>
-                      msg.id === aiMessage.id
-                        ? { ...msg, content: msg.content + chunk }
-                        : msg
-                    )
-                  }
-                : session
-            ),
-            currentSession: state.currentSession
-              ? {
-                  ...state.currentSession,
-                  messages: state.currentSession.messages.map(msg =>
-                    msg.id === aiMessage.id
-                      ? { ...msg, content: msg.content + chunk }
-                      : msg
-                  )
-                }
-              : null
-          }));
+          console.log('📝 [chatStore] 收到AI chunk:', chunk.length, '字符');
+          set(state => {
+            // 使用当前state中的最新数据，而不是闭包变量
+            const currentSessionId = state.currentSession?.id;
+            if (!currentSessionId || !state.currentSession) {
+              console.warn('⚠️ [chatStore] 当前没有活动会话，跳过chunk更新');
+              return state;
+            }
+
+            // 找到最新的AI消息（最后一条消息且role为assistant）
+            const currentSessionMessages = state.currentSession.messages;
+            const lastMessage = currentSessionMessages[currentSessionMessages.length - 1];
+            
+            if (!lastMessage || lastMessage.role !== 'assistant') {
+              console.warn('⚠️ [chatStore] 找不到最新的AI消息，跳过chunk更新');
+              return state;
+            }
+
+            console.log('📝 [chatStore] 更新AI消息，当前长度:', lastMessage.content.length, '添加chunk:', chunk.length);
+
+            return {
+              sessions: state.sessions.map(session =>
+                session.id === currentSessionId
+                  ? {
+                      ...session,
+                      messages: session.messages.map(msg =>
+                        msg.id === lastMessage.id
+                          ? { ...msg, content: msg.content + chunk }
+                          : msg
+                      )
+                    }
+                  : session
+              ),
+              currentSession: {
+                ...state.currentSession,
+                messages: state.currentSession.messages.map(msg =>
+                  msg.id === lastMessage.id
+                    ? { ...msg, content: msg.content + chunk }
+                    : msg
+                )
+              },
+              isLoading: state.isLoading,
+              isStreaming: state.isStreaming,
+              error: state.error,
+              isInitialized: state.isInitialized,
+              createSession: state.createSession,
+              setCurrentSession: state.setCurrentSession,
+              sendMessage: state.sendMessage,
+              loadSessions: state.loadSessions,
+              deleteSession: state.deleteSession,
+              updateSessionTitle: state.updateSessionTitle,
+              clearError: state.clearError,
+              initialize: state.initialize,
+              switchUser: state.switchUser
+            };
+          });
         },
         // onComplete - 完成回调
         async () => {
-          console.log('AI响应完成');
+          console.log('🎯 [chatStore] AI响应完成，开始保存消息到后端');
+          console.log('🎯 [chatStore] 当前会话ID:', currentSession.id);
+          console.log('🎯 [chatStore] 用户消息内容长度:', userMessage.content.length);
 
           // 保存消息到后端
           const finalAiMessage = get().currentSession?.messages.find(m => m.id === aiMessage.id);
           if (finalAiMessage) {
+            console.log('🎯 [chatStore] 找到最终AI消息，内容长度:', finalAiMessage.content.length);
             try {
+              // 🔧 验证sessionId转换
+              console.log('🎯 [chatStore] 当前会话ID(字符串):', currentSession.id);
+              const sessionIdNumber = parseInt(currentSession.id);
+              if (isNaN(sessionIdNumber)) {
+                throw new Error(`无效的sessionId，无法转换为数字: "${currentSession.id}"`);
+              }
+              console.log('🎯 [chatStore] sessionId转换成功:', sessionIdNumber);
+              
               // 保存用户消息
-              await chatHistoryService.saveMessage({
-                sessionId: parseInt(currentSession.id),
-                role: 'user',
+              console.log('🎯 [chatStore] 正在保存用户消息...');
+              const userSaveRequest = {
+                sessionId: sessionIdNumber,
+                role: 'user' as const,
                 content: userMessage.content,
                 modelName: 'user'
-              });
+              };
+              console.log('🎯 [chatStore] 用户消息保存请求:', userSaveRequest);
+              await chatHistoryService.saveMessage(userSaveRequest);
+              console.log('✅ [chatStore] 用户消息保存成功');
               
               // 保存AI消息
-              await chatHistoryService.saveMessage({
-                sessionId: parseInt(currentSession.id),
-                role: 'assistant',
+              console.log('🎯 [chatStore] 正在保存AI消息...');
+              const aiSaveRequest = {
+                sessionId: sessionIdNumber,
+                role: 'assistant' as const,
                 content: finalAiMessage.content,
                 modelName: 'Qwen/Qwen2.5-7B-Instruct'
-              });
+              };
+              console.log('🎯 [chatStore] AI消息保存请求:', aiSaveRequest);
+              await chatHistoryService.saveMessage(aiSaveRequest);
+              console.log('✅ [chatStore] AI消息保存成功');
+              console.log('🎉 [chatStore] 所有消息保存完成！');
             } catch (saveError) {
-              console.error('保存消息到后端失败:', saveError);
+              console.error('❌ [chatStore] 保存消息到后端失败:', saveError);
+              
+              // 🔧 增加详细的错误信息显示
+              if (saveError instanceof Error) {
+                console.error('❌ [chatStore] 错误类型:', saveError.name);
+                console.error('❌ [chatStore] 错误详情:', saveError.message);
+                console.error('❌ [chatStore] 错误堆栈:', saveError.stack);
+              }
+              
+              // 🔧 检查是否是网络错误
+              if (saveError && typeof saveError === 'object' && 'response' in saveError) {
+                const apiError = saveError as any;
+                console.error('❌ [chatStore] API错误状态:', apiError.response?.status);
+                console.error('❌ [chatStore] API错误数据:', apiError.response?.data);
+                console.error('❌ [chatStore] API请求配置:', apiError.config);
+              }
+              
+              // 🔧 显示用户可见的详细错误提示
+              const errorMessage = saveError instanceof Error 
+                ? `消息保存失败: ${saveError.message}` 
+                : '消息保存失败: 未知错误';
+              
+              set(state => ({
+                ...state,
+                error: errorMessage
+              }));
             }
+          } else {
+            console.warn('⚠️  [chatStore] 未找到最终AI消息，无法保存');
           }
 
           set({ isStreaming: false });
@@ -405,7 +792,8 @@ export const useChatStore = create<ChatState>()(
           set({ isLoading: true, error: null });
 
           const sessionsData = await chatHistoryService.getSessions({
-            pageSize: 50,
+            page: 1,
+            pageSize: 20,
             order: 'desc'
           });
 
@@ -530,9 +918,9 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: 'chat-store-global',
-      // 由于需要用户隔离，我们手动处理数据持久化，这里只保存全局状态
+      // 不保存isInitialized状态，每次刷新都重新初始化以确保数据加载
       partialize: (state) => ({
-        isInitialized: state.isInitialized
+        // 不持久化任何状态，让每次刷新都重新初始化
       })
     }
   )

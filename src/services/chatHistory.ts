@@ -60,8 +60,36 @@ export class ChatHistoryService {
     total: number;
     list: ChatSession[];
   }> {
-    const response = await apiClient.get(API_ENDPOINTS.CHAT.GET_SESSIONS, { params });
-    return response.data.data;
+    console.log('📡 [chatHistoryService] 开始获取会话列表');
+    console.log('📡 [chatHistoryService] API端点:', API_ENDPOINTS.CHAT.GET_SESSIONS);
+    console.log('📡 [chatHistoryService] 请求参数:', params);
+    
+    try {
+      const response = await apiClient.get(API_ENDPOINTS.CHAT.GET_SESSIONS, { params });
+      
+      console.log('✅ [chatHistoryService] getSessions API响应成功');
+      console.log('📡 [chatHistoryService] 响应状态:', response.status);
+      console.log('📡 [chatHistoryService] 响应数据:', JSON.stringify(response.data, null, 2));
+      
+      const result = response.data.data;
+      console.log('🔍 [chatHistoryService] 解析结果分析:', {
+        hasResult: !!result,
+        hasListField: !!result?.list,
+        sessionCount: result?.list?.length || 0,
+        totalCount: result?.total || 0,
+        resultFields: Object.keys(result || {})
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('❌ [chatHistoryService] getSessions API调用失败:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as any;
+        console.error('❌ [chatHistoryService] API错误状态:', apiError.response?.status);
+        console.error('❌ [chatHistoryService] API错误数据:', apiError.response?.data);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -91,7 +119,23 @@ export class ChatHistoryService {
    * POST /api/chat/messages
    */
   async saveMessage(request: SaveMessageRequest): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.CHAT.SAVE_MESSAGE, request);
+    console.log('📡 [chatHistoryService] 开始保存消息到后端');
+    console.log('📡 [chatHistoryService] API端点:', API_ENDPOINTS.CHAT.SAVE_MESSAGE);
+    console.log('📡 [chatHistoryService] 请求参数:', request);
+    
+    try {
+      const response = await apiClient.post(API_ENDPOINTS.CHAT.SAVE_MESSAGE, request);
+      console.log('✅ [chatHistoryService] 消息保存成功，响应:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ [chatHistoryService] 保存消息失败:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as any;
+        console.error('❌ [chatHistoryService] API错误状态:', apiError.response?.status);
+        console.error('❌ [chatHistoryService] API错误数据:', apiError.response?.data);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -108,13 +152,56 @@ export class ChatHistoryService {
     total: number;
     list: ChatMessage[];
   }> {
-    const response = await apiClient.get(API_ENDPOINTS.CHAT.GET_MESSAGES, { 
-      params: { 
-        ...params, 
-        sessionId 
-      } 
-    });
-    return response.data.data;
+    console.log('📡 [chatHistoryService] 开始获取消息，sessionId:', sessionId);
+    console.log('📡 [chatHistoryService] API端点:', API_ENDPOINTS.CHAT.GET_MESSAGES);
+    console.log('📡 [chatHistoryService] 请求参数:', { ...params, sessionId });
+    
+    try {
+      const response = await apiClient.get(API_ENDPOINTS.CHAT.GET_MESSAGES, { 
+        params: { 
+          ...params, 
+          sessionId 
+        } 
+      });
+      
+      console.log('✅ [chatHistoryService] getMessages API响应成功');
+      console.log('📡 [chatHistoryService] 响应状态:', response.status);
+      console.log('📡 [chatHistoryService] 响应数据:', JSON.stringify(response.data, null, 2));
+      
+      const result = response.data.data;
+      console.log('🔍 [chatHistoryService] 解析结果分析:', {
+        hasResult: !!result,
+        resultIsNull: result === null,
+        hasListField: !!result?.list,
+        messageCount: result?.list?.length || 0,
+        totalCount: result?.total || 0,
+        resultFields: Object.keys(result || {}),
+        backendCode: response.data.code,
+        backendMessage: response.data.msg
+      });
+      
+      // 特别处理data为null的情况
+      if (result === null) {
+        console.warn('⚠️ [chatHistoryService] 后端返回data为null，可能原因:');
+        console.warn('  1. 该会话没有任何消息记录');
+        console.warn('  2. sessionId在数据库中不存在');  
+        console.warn('  3. 用户权限问题，无法查看该会话消息');
+        console.warn('  4. 后端查询SQL出错');
+        console.warn('  sessionId:', sessionId, '类型:', typeof sessionId);
+        
+        return { list: [], total: 0, page: 1, pageSize: 100 };
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('❌ [chatHistoryService] getMessages API调用失败:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as any;
+        console.error('❌ [chatHistoryService] API错误状态:', apiError.response?.status);
+        console.error('❌ [chatHistoryService] API错误数据:', apiError.response?.data);
+      }
+      throw error;
+    }
   }
 
 }

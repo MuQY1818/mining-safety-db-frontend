@@ -6,7 +6,6 @@ import {
   Typography,
   Avatar,
   Spin,
-  Tag,
   Button,
   List,
   Empty,
@@ -25,60 +24,42 @@ import {
   PlusOutlined,
   DeleteOutlined
 } from '@ant-design/icons';
-import { siliconFlowService } from '../../services/siliconflow';
 import { MINING_BLUE_COLORS } from '../../config/theme';
 import ReactMarkdown from 'react-markdown';
+import { useChatStore } from '../../store/chatStore';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
-interface Message {
-  id: string;
-  type: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-}
-
-interface ChatSession {
-  id: string;
-  title: string;
-  messages: Message[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 const NewAIChatPage: React.FC = () => {
-  // 聊天会话管理
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string>('');
-  const [showHistoryPanel, setShowHistoryPanel] = useState(true);
+  // 使用chatStore管理聊天状态
+  const {
+    sessions,
+    currentSession,
+    isStreaming,
+    // error, // 暂时不使用error状态，由内部处理
+    createSession,
+    setCurrentSession,
+    deleteSession,
+    sendMessage,
+    initialize
+  } = useChatStore();
 
-  // 当前会话的消息
-  const [messages, setMessages] = useState<Message[]>([]);
+  // 本地UI状态
   const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(true);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // 初始化默认会话
+  // 初始化聊天store - 确保用户认证后再执行
   useEffect(() => {
-    if (sessions.length === 0) {
-      const defaultSession: ChatSession = {
-        id: Date.now().toString(),
-        title: '矿区安全咨询',
-        messages: [{
-          id: '1',
-          type: 'assistant',
-          content: '您好！我是矿区安全AI助手，专门为您解答各种矿区安全问题。您可以问我关于煤矿安全、金属矿安全、非金属矿安全、露天矿安全等任何问题，比如瓦斯检测标准、安全操作规程、应急预案等。',
-          timestamp: new Date()
-        }],
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      setSessions([defaultSession]);
-      setCurrentSessionId(defaultSession.id);
-      setMessages(defaultSession.messages);
-    }
-  }, [sessions.length]);
+    console.log('🎯 [NewAIChat] 检查是否需要初始化chatStore');
+    // 添加小延迟确保authStore已经完成初始化
+    const timer = setTimeout(() => {
+      console.log('🎯 [NewAIChat] 开始执行chatStore初始化');
+      initialize();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [initialize]);
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -89,51 +70,36 @@ const NewAIChatPage: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [currentSession?.messages, scrollToBottom]);
 
   // 创建新会话
-  const createNewSession = () => {
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      title: '新的安全咨询',
-      messages: [{
-        id: '1',
-        type: 'assistant',
-        content: '您好！我是矿区安全AI助手，有什么安全问题需要咨询吗？',
-        timestamp: new Date()
-      }],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    setSessions(prev => [newSession, ...prev]);
-    setCurrentSessionId(newSession.id);
-    setMessages(newSession.messages);
-    message.success('新会话创建成功');
+  const createNewSession = async () => {
+    try {
+      const sessionId = await createSession('新的安全咨询');
+      message.success('新会话创建成功');
+      return sessionId;
+    } catch (error) {
+      message.error('创建会话失败');
+    }
   };
 
   // 切换会话
-  const switchSession = (sessionId: string) => {
-    const session = sessions.find(s => s.id === sessionId);
-    if (session) {
-      setCurrentSessionId(sessionId);
-      setMessages(session.messages);
+  const switchSession = async (sessionId: string) => {
+    try {
+      await setCurrentSession(sessionId);
+    } catch (error) {
+      message.error('切换会话失败');
     }
   };
 
   // 删除会话
-  const deleteSession = (sessionId: string) => {
-    setSessions(prev => prev.filter(s => s.id !== sessionId));
-    if (currentSessionId === sessionId) {
-      const remainingSessions = sessions.filter(s => s.id !== sessionId);
-      if (remainingSessions.length > 0) {
-        const firstSession = remainingSessions[0];
-        setCurrentSessionId(firstSession.id);
-        setMessages(firstSession.messages);
-      } else {
-        createNewSession();
-      }
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      await deleteSession(sessionId);
+      message.success('会话已删除');
+    } catch (error) {
+      message.error('删除会话失败');
     }
-    message.success('会话已删除');
   };
 
   // 快捷问题
@@ -157,93 +123,22 @@ const NewAIChatPage: React.FC = () => {
   ];
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return;
+    if (!inputMessage.trim() || isStreaming) return;
+    
+    // 如果没有当前会话，先创建一个
+    if (!currentSession) {
+      await createNewSession();
+      return;
+    }
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputMessage.trim(),
-      timestamp: new Date()
-    };
-
-    const aiMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      type: 'assistant',
-      content: '',
-      timestamp: new Date()
-    };
-
-    const newMessages = [...messages, userMessage, aiMessage];
-    setMessages(newMessages);
-
-    // 更新当前会话
-    setSessions(prev => prev.map(session =>
-      session.id === currentSessionId
-        ? { ...session, messages: newMessages, updatedAt: new Date() }
-        : session
-    ));
-
+    const messageContent = inputMessage.trim();
     setInputMessage('');
-    setIsLoading(true);
 
     try {
-      await siliconFlowService.chatStream(
-        inputMessage.trim(),
-        [],
-        (chunk: string) => {
-          setMessages(prev => {
-            const updatedMessages = prev.map(msg =>
-              msg.id === aiMessage.id
-                ? { ...msg, content: msg.content + chunk }
-                : msg
-            );
-            // 同时更新会话
-            setSessions(prevSessions => prevSessions.map(session =>
-              session.id === currentSessionId
-                ? { ...session, messages: updatedMessages, updatedAt: new Date() }
-                : session
-            ));
-            return updatedMessages;
-          });
-        },
-        () => {
-          setIsLoading(false);
-        },
-        () => {
-          setMessages(prev => {
-            const updatedMessages = prev.map(msg =>
-              msg.id === aiMessage.id
-                ? { ...msg, content: '抱歉，AI服务暂时不可用，请稍后再试。' }
-                : msg
-            );
-            // 同时更新会话
-            setSessions(prevSessions => prevSessions.map(session =>
-              session.id === currentSessionId
-                ? { ...session, messages: updatedMessages, updatedAt: new Date() }
-                : session
-            ));
-            return updatedMessages;
-          });
-          setIsLoading(false);
-        }
-      );
+      await sendMessage(messageContent);
     } catch (error) {
       console.error('发送消息失败:', error);
-      setMessages(prev => {
-        const updatedMessages = prev.map(msg =>
-          msg.id === aiMessage.id
-            ? { ...msg, content: '抱歉，发送消息失败，请稍后再试。' }
-            : msg
-        );
-        // 同时更新会话
-        setSessions(prevSessions => prevSessions.map(session =>
-          session.id === currentSessionId
-            ? { ...session, messages: updatedMessages, updatedAt: new Date() }
-            : session
-        ));
-        return updatedMessages;
-      });
-      setIsLoading(false);
+      message.error('发送消息失败，请稍后再试');
     }
   };
 
@@ -359,8 +254,8 @@ const NewAIChatPage: React.FC = () => {
                             padding: '12px 16px',
                             marginBottom: '8px',
                             borderRadius: '8px',
-                            border: session.id === currentSessionId ? `2px solid ${MINING_BLUE_COLORS.primary}` : '1px solid #e8e8e8',
-                            background: session.id === currentSessionId ? '#f0f7ff' : 'white',
+                            border: session.id === currentSession?.id ? `2px solid ${MINING_BLUE_COLORS.primary}` : '1px solid #e8e8e8',
+                            background: session.id === currentSession?.id ? '#f0f7ff' : 'white',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease'
                           }}
@@ -370,7 +265,7 @@ const NewAIChatPage: React.FC = () => {
                               title="确定删除这个会话吗？"
                               onConfirm={(e) => {
                                 e?.stopPropagation();
-                                deleteSession(session.id);
+                                handleDeleteSession(session.id);
                               }}
                               okText="确定"
                               cancelText="取消"
@@ -389,8 +284,8 @@ const NewAIChatPage: React.FC = () => {
                             title={
                               <div style={{
                                 fontSize: '14px',
-                                fontWeight: session.id === currentSessionId ? 'bold' : 'normal',
-                                color: session.id === currentSessionId ? MINING_BLUE_COLORS.primary : '#333'
+                                fontWeight: session.id === currentSession?.id ? 'bold' : 'normal',
+                                color: session.id === currentSession?.id ? MINING_BLUE_COLORS.primary : '#333'
                               }}>
                                 {session.title}
                               </div>
@@ -496,12 +391,12 @@ const NewAIChatPage: React.FC = () => {
                 }}
               >
                 <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                  {messages.map((message) => (
+                  {currentSession?.messages?.map((message) => (
                     <div
                       key={message.id}
                       style={{
                         display: 'flex',
-                        justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start'
+                        justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start'
                       }}
                     >
                       <div
@@ -510,13 +405,13 @@ const NewAIChatPage: React.FC = () => {
                           display: 'flex',
                           alignItems: 'flex-start',
                           gap: '8px',
-                          flexDirection: message.type === 'user' ? 'row-reverse' : 'row'
+                          flexDirection: message.role === 'user' ? 'row-reverse' : 'row'
                         }}
                       >
                         <Avatar
-                          icon={message.type === 'user' ? <UserOutlined /> : <RobotOutlined />}
+                          icon={message.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
                           style={{
-                            backgroundColor: message.type === 'user' 
+                            backgroundColor: message.role === 'user' 
                               ? MINING_BLUE_COLORS.primary 
                               : MINING_BLUE_COLORS.secondary,
                             flexShrink: 0
@@ -526,15 +421,15 @@ const NewAIChatPage: React.FC = () => {
                           style={{
                             padding: '12px 16px',
                             borderRadius: '12px',
-                            backgroundColor: message.type === 'user' 
+                            backgroundColor: message.role === 'user' 
                               ? MINING_BLUE_COLORS.primary 
                               : 'white',
-                            color: message.type === 'user' ? 'white' : 'black',
-                            border: message.type === 'assistant' ? '1px solid #e8e8e8' : 'none',
+                            color: message.role === 'user' ? 'white' : 'black',
+                            border: message.role === 'assistant' ? '1px solid #e8e8e8' : 'none',
                             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                           }}
                         >
-                          {message.type === 'user' ? (
+                          {message.role === 'user' ? (
                             <Paragraph 
                               style={{ 
                                 margin: 0, 
@@ -558,7 +453,7 @@ const NewAIChatPage: React.FC = () => {
                             fontSize: '11px', 
                             marginTop: '8px',
                             opacity: 0.7,
-                            color: message.type === 'user' ? 'rgba(255,255,255,0.8)' : '#999'
+                            color: message.role === 'user' ? 'rgba(255,255,255,0.8)' : '#999'
                           }}>
                             {message.timestamp.toLocaleTimeString()}
                           </div>
@@ -583,7 +478,7 @@ const NewAIChatPage: React.FC = () => {
                     onPressEnter={handleKeyPress}
                     placeholder="请输入您的问题..."
                     autoSize={{ minRows: 2, maxRows: 4 }}
-                    disabled={isLoading}
+                    disabled={isStreaming}
                     style={{ 
                       flex: 1,
                       borderRadius: '12px',
@@ -593,7 +488,7 @@ const NewAIChatPage: React.FC = () => {
                   />
                   <button
                     onClick={handleSendMessage}
-                    disabled={!inputMessage.trim() || isLoading}
+                    disabled={!inputMessage.trim() || isStreaming}
                     style={{
                       width: '48px',
                       height: '48px',
@@ -601,8 +496,8 @@ const NewAIChatPage: React.FC = () => {
                       border: 'none',
                       background: `linear-gradient(135deg, ${MINING_BLUE_COLORS.primary} 0%, ${MINING_BLUE_COLORS.secondary} 100%)`,
                       color: 'white',
-                      cursor: inputMessage.trim() && !isLoading ? 'pointer' : 'not-allowed',
-                      opacity: inputMessage.trim() && !isLoading ? 1 : 0.5,
+                      cursor: inputMessage.trim() && !isStreaming ? 'pointer' : 'not-allowed',
+                      opacity: inputMessage.trim() && !isStreaming ? 1 : 0.5,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -611,7 +506,7 @@ const NewAIChatPage: React.FC = () => {
                       flexShrink: 0
                     }}
                   >
-                    {isLoading ? <Spin size="small" /> : <SendOutlined />}
+                    {isStreaming ? <Spin size="small" /> : <SendOutlined />}
                   </button>
                 </div>
                 <div style={{ 
