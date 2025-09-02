@@ -68,6 +68,24 @@ const priorityConfig = {
   urgent: { color: 'red', label: '紧急' }
 };
 
+// 状态通知配置 - 用于已处理/已关闭建议的通知展示
+const statusNotificationConfig = {
+  resolved: {
+    type: 'success' as const,
+    icon: '✅',
+    title: '建议已处理',
+    message: '该建议已被管理员处理完成',
+    color: '#52c41a'
+  },
+  closed: {
+    type: 'info' as const,
+    icon: '🚪', 
+    title: '建议已关闭',
+    message: '该建议已被关闭，不再接受新的处理',
+    color: '#1890ff'
+  }
+};
+
 const FeedbackList: React.FC<FeedbackListProps> = ({
   feedbacks,
   loading = false,
@@ -103,6 +121,92 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
     onVote?.(id, type);
   };
 
+  // 显示反馈状态通知 - 手动创建DOM通知元素
+  const showFeedbackStatusModal = (feedback: UserFeedback) => {
+    const config = statusNotificationConfig[feedback.status as 'resolved' | 'closed'];
+    if (!config) return;
+
+    // 手动创建通知DOM元素，避免Ant Design上下文问题
+    const notification = document.createElement('div');
+    const replyText = feedback.reply ? `\n管理员回复：${feedback.reply}` : '';
+    const typeLabel = getTypeConfig(feedback.type).label;
+    
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${config.type === 'success' ? '#f6ffed' : '#e6f7ff'};
+      border: 1px solid ${config.type === 'success' ? '#b7eb8f' : '#91d5ff'};
+      border-left: 4px solid ${config.color};
+      padding: 16px 20px;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      min-width: 350px;
+      max-width: 400px;
+      z-index: 9999;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #333;
+      animation: slideInRight 0.3s ease-out;
+    `;
+    
+    notification.innerHTML = `
+      <div style="display: flex; align-items: flex-start; gap: 8px;">
+        <span style="font-size: 18px; line-height: 1;">${config.icon}</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: ${config.color}; margin-bottom: 4px;">
+            ${config.title}
+          </div>
+          <div style="margin-bottom: 8px; color: #666;">
+            ${config.message}
+          </div>
+          <div style="font-size: 13px;">
+            <div><strong>标题：</strong>${feedback.title}</div>
+            <div style="margin-top: 4px;"><strong>类型：</strong>${typeLabel}</div>
+            ${replyText ? `<div style="margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.04); border-radius: 4px; font-size: 12px;"><strong>管理员回复：</strong><br>${feedback.reply}</div>` : ''}
+          </div>
+        </div>
+        <span style="cursor: pointer; font-size: 16px; color: #999; margin-left: 8px;" onclick="this.parentElement.parentElement.remove()">×</span>
+      </div>
+    `;
+
+    // 添加CSS动画
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInRight {
+        from {
+          opacity: 0;
+          transform: translateX(100%);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // 添加到页面
+    document.body.appendChild(notification);
+    
+    // 6秒后自动移除
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.style.animation = 'slideInRight 0.3s ease-out reverse';
+        setTimeout(() => notification.remove(), 300);
+      }
+    }, 6000);
+
+    console.log('✅ 显示状态通知:', {
+      title: config.title,
+      message: config.message,
+      feedbackTitle: feedback.title,
+      status: feedback.status,
+      reply: feedback.reply
+    });
+  };
+
   // 管理员处理反馈
   const handleManageFeedback = async (feedback: UserFeedback) => {
     console.log('🔍 选中的反馈对象完整信息:', feedback);
@@ -114,21 +218,43 @@ const FeedbackList: React.FC<FeedbackListProps> = ({
       const latestFeedback = await apiService.getFeedbackDetail(feedback.id);
       console.log('🔄 最新反馈数据:', latestFeedback);
       
-      setSelectedFeedback({...feedback, ...latestFeedback});
+      // 合并最新数据
+      const updatedFeedback = { ...feedback, ...latestFeedback };
+      
+      // 🎯 核心改进：状态检查逻辑
+      if (updatedFeedback.status === 'resolved' || updatedFeedback.status === 'closed') {
+        console.log('📋 反馈状态已处理/已关闭，显示通知而非处理表单');
+        showFeedbackStatusModal(updatedFeedback);
+        return; // 提前返回，不打开处理表单
+      }
+      
+      // 只有pending状态才打开处理表单
+      console.log('📝 反馈状态为待处理，打开处理表单');
+      setSelectedFeedback(updatedFeedback);
       handleForm.setFieldsValue({
         status: latestFeedback.status,
         reply: latestFeedback.reply || ''
       });
+      setHandleVisible(true);
+      
     } catch (error) {
       console.warn('获取最新反馈详情失败，使用当前数据:', error);
+      
+      // 即使API失败，也要进行本地状态检查
+      if (feedback.status === 'resolved' || feedback.status === 'closed') {
+        console.log('📋 API失败，但本地状态已处理/已关闭，显示通知');
+        showFeedbackStatusModal(feedback);
+        return;
+      }
+      
+      // 降级处理：使用当前数据
       setSelectedFeedback(feedback);
       handleForm.setFieldsValue({
         status: feedback.status,
         reply: feedback.reply || ''
       });
+      setHandleVisible(true);
     }
-    
-    setHandleVisible(true);
   };
 
   // 提交处理结果
