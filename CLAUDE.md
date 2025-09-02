@@ -213,6 +213,8 @@ src/
 
 - `<YYYY-MM-DD>`：<改动摘要>；**影响面**：<受影响模块>；**回滚**：<回滚方式>；**相关**：<文件/PR/Issue>
 
+- 2025-09-02：完成dev分支到main的merge操作-智能反馈状态通知功能正式发布；**影响面**：git merge解决CLAUDE.md和DataForm.tsx冲突，FeedbackList.tsx智能状态检查和右上角DOM通知系统正式并入主分支，文件上传通知系统统一使用appNotification，所有功能完整集成；**回滚**：git reset --hard HEAD~1恢复merge前状态；**相关**：CLAUDE.md冲突解决，DataForm.tsx统一通知系统，FeedbackList.tsx状态通知功能
+
 > **自动插入片段（Claude 可直接复用）**
 >  **Bash**：
 >
