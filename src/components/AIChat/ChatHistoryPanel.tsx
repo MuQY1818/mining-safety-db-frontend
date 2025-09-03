@@ -11,13 +11,15 @@ import {
   Spin,
   Tooltip,
   Popconfirm,
-  message
+  message,
+  Divider
 } from 'antd';
 import {
   MessageOutlined,
   DeleteOutlined,
   ClockCircleOutlined,
-  PlusOutlined
+  PlusOutlined,
+  DownOutlined
 } from '@ant-design/icons';
 import { ChatSession } from '../../types/ai';
 import { useChatStore } from '../../store/chatStore';
@@ -41,14 +43,45 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
     isLoading,
     error,
     loadSessions,
+    loadSessionsPaginated,
     createSession,
     deleteSession,
     clearError
   } = useChatStore();
+  
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+    loadInitialSessions();
+  }, [loadSessions, loadSessionsPaginated]);
+
+  const loadInitialSessions = async () => {
+    try {
+      setCurrentPage(1);
+      const result = await loadSessionsPaginated(1, 20);
+      setHasMore(result.hasMore);
+    } catch (error) {
+      message.error('加载会话列表失败');
+    }
+  };
+
+  const loadMoreSessions = async () => {
+    if (loadingMore || !hasMore) return;
+    
+    try {
+      setLoadingMore(true);
+      const nextPage = currentPage + 1;
+      const result = await loadSessionsPaginated(nextPage, 20);
+      setCurrentPage(nextPage);
+      setHasMore(result.hasMore);
+    } catch (error) {
+      message.error('加载更多会话失败');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     if (error) {
@@ -184,10 +217,26 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
     >
       <Spin spinning={isLoading}>
         {sessions.length > 0 ? (
-          <List
-            dataSource={sessions}
-            renderItem={renderSessionItem}
-          />
+          <>
+            <List
+              dataSource={sessions}
+              renderItem={renderSessionItem}
+            />
+            {hasMore && (
+              <>
+                <Divider style={{ margin: '12px 0' }} />
+                <div style={{ textAlign: 'center', padding: '12px' }}>
+                  <Button
+                    onClick={loadMoreSessions}
+                    loading={loadingMore}
+                    icon={<DownOutlined />}
+                  >
+                    {loadingMore ? '加载中...' : '加载更多'}
+                  </Button>
+                </div>
+              </>
+            )}
+          </>
         ) : (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}

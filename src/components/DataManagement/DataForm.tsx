@@ -137,11 +137,18 @@ const DataForm: React.FC<DataFormProps> = ({
       
       // 处理文件上传
       let downloadUrl = '';
+      let fileType = '';
+      let fileSize = '0';
+      
       if (fileList.length > 0 && fileList[0].response) {
         downloadUrl = fileList[0].response.url;
+        fileType = fileList[0].type || fileList[0].response.type || '';
+        fileSize = fileList[0].size?.toString() || fileList[0].response.size?.toString() || '0';
         console.log('📁 使用上传的文件URL:', downloadUrl);
       } else if (initialData?.downloadUrl) {
         downloadUrl = initialData.downloadUrl;
+        fileType = initialData.fileType || '';
+        fileSize = initialData.fileSize || '0';
         console.log('📁 使用初始数据的文件URL:', downloadUrl);
       } else {
         console.log('⚠️ 没有找到文件URL');
@@ -168,8 +175,8 @@ const DataForm: React.FC<DataFormProps> = ({
         longitude: '116.407526',
         latitude: '39.904030',
         downloadUrl: downloadUrl || 'http://placeholder.example.com/default.pdf',
-        fileSize: downloadUrl ? '1024' : '0',
-        fileType: downloadUrl ? 'application/pdf' : 'text/plain',
+        fileSize: fileSize,
+        fileType: fileType || 'application/pdf',
         relatedItems: [],
         tags: []
       };
@@ -313,8 +320,13 @@ const DataForm: React.FC<DataFormProps> = ({
           throw new Error('服务器返回数据不完整');
         }
         
-        // 上传成功，调用onSuccess并传入响应数据
-        onSuccess(response, file);
+        // 上传成功，调用onSuccess并传入响应数据和文件信息
+        onSuccess({
+          ...response,
+          name: file.name,
+          size: file.size,
+          type: file.type
+        }, file);
         
         // 显示详细的成功提示
         appNotification.success({

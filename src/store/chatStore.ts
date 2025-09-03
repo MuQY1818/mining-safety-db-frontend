@@ -20,6 +20,11 @@ interface ChatState {
   setCurrentSession: (sessionId: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
   loadSessions: () => Promise<void>;
+  loadSessionsPaginated: (page: number, pageSize: number) => Promise<{
+    sessions: ChatSession[];
+    total: number;
+    hasMore: boolean;
+  }>;
   deleteSession: (sessionId: string) => Promise<void>;
   updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
   clearError: () => void;
@@ -819,6 +824,51 @@ export const useChatStore = create<ChatState>()(
         }
       },
 
+      // 分页加载会话列表
+      loadSessionsPaginated: async (page: number = 1, pageSize: number = 20) => {
+        try {
+          // 如果是第一页，设置isLoading状态
+          if (page === 1) {
+            set({ isLoading: true, error: null });
+          }
+
+          const sessionsData = await chatHistoryService.getSessions({
+            page,
+            pageSize,
+            order: 'desc'
+          });
+
+          const sessions = sessionsData.list.map(convertBackendSession);
+
+          if (page === 1) {
+            // 第一页，替换现有会话列表
+            set({
+              sessions,
+              isLoading: false
+            });
+          } else {
+            // 后续页，追加到现有会话列表
+            set(state => ({
+              sessions: [...state.sessions, ...sessions],
+              isLoading: false
+            }));
+          }
+          
+          return {
+            sessions,
+            total: sessionsData.total,
+            hasMore: page * pageSize < sessionsData.total
+          };
+        } catch (error) {
+          console.error('加载会话列表失败:', error);
+          set({
+            error: error instanceof Error ? error.message : '加载会话失败',
+            isLoading: false
+          });
+          throw error;
+        }
+      },
+      
       // 删除会话
       deleteSession: async (sessionId: string) => {
         try {
