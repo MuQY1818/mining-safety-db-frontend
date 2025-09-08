@@ -1,7 +1,9 @@
 // API配置文件
+import { RUNTIME_CONFIG } from './runtime';
+
 export const API_CONFIG = {
   // 本地后端服务地址
-  BASE_URL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8081/api',
+  BASE_URL: process.env.REACT_APP_API_BASE_URL || RUNTIME_CONFIG.API_BASE_URL || 'http://localhost:8081/api',
   
   // 是否使用Mock数据
   USE_MOCK: process.env.REACT_APP_USE_MOCK === 'false',
@@ -17,7 +19,7 @@ export const API_CONFIG = {
 export const SILICONFLOW_CONFIG = {
   // API基础配置
   baseURL: 'https://api.siliconflow.cn/v1',
-  apiKey: process.env.REACT_APP_SILICONFLOW_API_KEY,
+  apiKey: process.env.REACT_APP_SILICONFLOW_API_KEY || RUNTIME_CONFIG.SILICONFLOW_API_KEY,
   
   // 推荐模型配置 - 只使用7B免费模型
   models: {

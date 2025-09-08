@@ -454,6 +454,21 @@ main() {
     echo "总耗时: ${duration} 秒"
     echo "========================================"
     
+    # API Key配置说明
+    echo ""
+    echo "🔑 重要提醒：API Key配置"
+    echo "========================================"
+    echo "1. 如果需要使用AI功能，请在.env.production文件中设置："
+    echo "   REACT_APP_SILICONFLOW_API_KEY=your_actual_api_key"
+    echo ""
+    echo "2. 获取API Key地址：https://siliconflow.cn/account/ak"
+    echo ""
+    echo "3. 设置完成后请重启服务："
+    echo "   $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE restart mining-frontend"
+    echo ""
+    echo "4. 验证AI功能：访问应用并测试聊天功能"
+    echo "========================================"
+    
     log_success "所有操作完成！"
 }
 

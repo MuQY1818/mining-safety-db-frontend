@@ -30,6 +30,9 @@ services:
       - TZ=Asia/Shanghai
       - NGINX_WORKER_PROCESSES=auto
       - NGINX_WORKER_CONNECTIONS=1024
+      # AI服务配置 - 必须在运行时提供真实的API密钥
+      - REACT_APP_SILICONFLOW_API_KEY=${REACT_APP_SILICONFLOW_API_KEY}
+      - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL:-https://mining-backend.ziven.site/api}
     
     volumes:
       # Nginx日志挂载到主机
