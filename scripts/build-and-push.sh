@@ -143,11 +143,11 @@ build_image() {
     log_info "Git分支: ${GIT_BRANCH}"
     log_info "构建时间: ${BUILD_DATE}"
     
-    # 构建镜像
+    # 构建镜像（使用占位符API key，安全由运行时环境变量保证）
     docker build \
         --tag "${full_image_name}" \
         --build-arg REACT_APP_API_BASE_URL="${REACT_APP_API_BASE_URL}" \
-        --build-arg REACT_APP_SILICONFLOW_API_KEY="${REACT_APP_SILICONFLOW_API_KEY:-}" \
+        --build-arg REACT_APP_SILICONFLOW_API_KEY="build_time_placeholder" \
         --build-arg BUILD_VERSION="${TAG}" \
         --build-arg BUILD_DATE="${BUILD_DATE}" \
         --build-arg VCS_REF="${GIT_COMMIT}" \

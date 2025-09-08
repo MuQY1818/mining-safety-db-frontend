@@ -68,7 +68,10 @@
       "Bash(node:*)",
       "Bash(npx playwright install:*)",
       "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/controller/**)",
-      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/dto/request/**)"
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/dto/request/**)",
+      "Bash(git rm:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": [],

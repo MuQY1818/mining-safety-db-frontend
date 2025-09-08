@@ -24,13 +24,6 @@ RUN npm ci --only=production --no-audit --no-fund
 COPY . .
 
 # 构建应用
-# 设置构建时环境变量
-ARG REACT_APP_API_BASE_URL=https://mining-backend.ziven.site/api
-ARG REACT_APP_SILICONFLOW_API_KEY=default_placeholder_key
-
-# 确保环境变量在构建时可用（仅用于构建，不在生产环境暴露）
-ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
-ENV REACT_APP_SILICONFLOW_API_KEY=$REACT_APP_SILICONFLOW_API_KEY
 
 # 执行构建
 RUN npm run build
@@ -79,12 +72,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # 暴露端口
 EXPOSE 80
 
-# 复制环境变量注入脚本
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-# 启动nginx（先注入环境变量）
-ENTRYPOINT ["/entrypoint.sh"]
+# 启动nginx
 CMD ["nginx", "-g", "daemon off;"]
 
 # 容器标签信息
