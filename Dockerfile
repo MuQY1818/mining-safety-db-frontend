@@ -23,9 +23,13 @@ RUN npm ci --only=production --no-audit --no-fund
 # 复制源代码
 COPY . .
 
-# 构建应用
+# 设置构建时环境变量
+ARG REACT_APP_SILICONFLOW_API_KEY
+ENV REACT_APP_SILICONFLOW_API_KEY=$REACT_APP_SILICONFLOW_API_KEY
+ARG REACT_APP_API_BASE_URL
+ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
 
-# 执行构建
+# 构建应用
 RUN npm run build
 
 # ================================  

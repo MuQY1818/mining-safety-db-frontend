@@ -1,6 +1,10 @@
 services:
   mining-frontend:
-    build: .
+    build: 
+      context: .
+      args:
+        - REACT_APP_SILICONFLOW_API_KEY=sk-mtluervosowzcbzqctuxrntymfenpgriigjjkhdmwrorpsby
+        - REACT_APP_API_BASE_URL=https://mining-backend.ziven.site/api
     container_name: mining-frontend
     restart: unless-stopped
     ports:
