@@ -68,7 +68,8 @@
       "Bash(node:*)",
       "Bash(npx playwright install:*)",
       "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/controller/**)",
-      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/dto/request/**)"
+      "Read(/home/server/Code/Project/mining-db-server/src/main/java/cn/mining/server/common/dto/request/**)",
+      "Read(//home/server/Documents/xwechat_files/wxid_nlcfrl8i92vt12_6456/temp/2025-09/RWTemp/9c6fccb4c0be434314a24f02c1893d34/**)"
     ],
     "deny": [],
     "ask": [],

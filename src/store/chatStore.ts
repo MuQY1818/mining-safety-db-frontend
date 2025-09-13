@@ -642,81 +642,12 @@ export const useChatStore = create<ChatState>()(
             };
           });
         },
-        // onComplete - 完成回调
+        // onComplete - 完成回调（后端已自动保存消息）
         async () => {
-          console.log('🎯 [chatStore] AI响应完成，开始保存消息到后端');
-          console.log('🎯 [chatStore] 当前会话ID:', currentSession.id);
-          console.log('🎯 [chatStore] 用户消息内容长度:', userMessage.content.length);
-
-          // 保存消息到后端
-          const finalAiMessage = get().currentSession?.messages.find(m => m.id === aiMessage.id);
-          if (finalAiMessage) {
-            console.log('🎯 [chatStore] 找到最终AI消息，内容长度:', finalAiMessage.content.length);
-            try {
-              // 🔧 验证sessionId转换
-              console.log('🎯 [chatStore] 当前会话ID(字符串):', currentSession.id);
-              const sessionIdNumber = parseInt(currentSession.id);
-              if (isNaN(sessionIdNumber)) {
-                throw new Error(`无效的sessionId，无法转换为数字: "${currentSession.id}"`);
-              }
-              console.log('🎯 [chatStore] sessionId转换成功:', sessionIdNumber);
-              
-              // 保存用户消息
-              console.log('🎯 [chatStore] 正在保存用户消息...');
-              const userSaveRequest = {
-                sessionId: sessionIdNumber,
-                role: 'user' as const,
-                content: userMessage.content,
-                modelName: 'user'
-              };
-              console.log('🎯 [chatStore] 用户消息保存请求:', userSaveRequest);
-              await chatHistoryService.saveMessage(userSaveRequest);
-              console.log('✅ [chatStore] 用户消息保存成功');
-              
-              // 保存AI消息
-              console.log('🎯 [chatStore] 正在保存AI消息...');
-              const aiSaveRequest = {
-                sessionId: sessionIdNumber,
-                role: 'assistant' as const,
-                content: finalAiMessage.content,
-                modelName: 'Qwen/Qwen2.5-7B-Instruct'
-              };
-              console.log('🎯 [chatStore] AI消息保存请求:', aiSaveRequest);
-              await chatHistoryService.saveMessage(aiSaveRequest);
-              console.log('✅ [chatStore] AI消息保存成功');
-              console.log('🎉 [chatStore] 所有消息保存完成！');
-            } catch (saveError) {
-              console.error('❌ [chatStore] 保存消息到后端失败:', saveError);
-              
-              // 🔧 增加详细的错误信息显示
-              if (saveError instanceof Error) {
-                console.error('❌ [chatStore] 错误类型:', saveError.name);
-                console.error('❌ [chatStore] 错误详情:', saveError.message);
-                console.error('❌ [chatStore] 错误堆栈:', saveError.stack);
-              }
-              
-              // 🔧 检查是否是网络错误
-              if (saveError && typeof saveError === 'object' && 'response' in saveError) {
-                const apiError = saveError as any;
-                console.error('❌ [chatStore] API错误状态:', apiError.response?.status);
-                console.error('❌ [chatStore] API错误数据:', apiError.response?.data);
-                console.error('❌ [chatStore] API请求配置:', apiError.config);
-              }
-              
-              // 🔧 显示用户可见的详细错误提示
-              const errorMessage = saveError instanceof Error 
-                ? `消息保存失败: ${saveError.message}` 
-                : '消息保存失败: 未知错误';
-              
-              set(state => ({
-                ...state,
-                error: errorMessage
-              }));
-            }
-          } else {
-            console.warn('⚠️  [chatStore] 未找到最终AI消息，无法保存');
-          }
-
+          console.log('🎯 [chatStore] AI响应完成');
+          console.log('🎯 [chatStore] 后端已自动保存消息，前端无需手动保存');
+          
+          // 仅更新前端状态，无需调用保存API
           set({ isStreaming: false });
         },
         // onError - 错误处理
@@ -749,7 +680,7 @@ export const useChatStore = create<ChatState>()(
         }
       );
 
-      // 会话会自动保存到后端，这里不需要额外调用
+      // 后端在流式响应的同时已自动保存消息，前端无需额外处理
 
     } catch (error) {
       set({
