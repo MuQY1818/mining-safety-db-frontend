@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // 主题配置
 import { antdTheme, cssVariables } from './config/theme';
+import { initRuntimeConfig } from './config/runtime';
 
 // 页面组件
 import LoginPage from './pages/Login';
@@ -64,8 +65,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 // 主应用组件
 const App: React.FC = () => {
-  // 注入CSS变量
+  // 初始化运行时配置
   useEffect(() => {
+    initRuntimeConfig();
+    
+    // 注入CSS变量
     const style = document.createElement('style');
     style.textContent = cssVariables;
     document.head.appendChild(style);

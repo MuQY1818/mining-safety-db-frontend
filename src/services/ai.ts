@@ -1,6 +1,6 @@
 // AI和反馈API服务
 import { apiClient, handleApiResponse, handleApiError } from './apiClient';
-import { siliconFlowService } from './siliconflow';
+// import { siliconFlowService } from './siliconflow';  // 已禁用，AI服务迁移到后端
 import {
   ChatMessage,
   ChatSession,
@@ -9,10 +9,11 @@ import {
   FeedbackQuery,
   FeedbackStats
 } from '../types/ai';
+import { API_CONFIG } from '../config/api';
 
 // AI问答API
 export const aiApi = {
-  // 流式聊天 - 使用回调方式
+  // 流式聊天 - 使用后端SSE接口
   chatStream: async (
     message: string,
     sessionId: string,
@@ -21,58 +22,139 @@ export const aiApi = {
     onError: (error: string) => void
   ): Promise<void> => {
     try {
-      console.log('🔗 [aiApi] 准备调用siliconFlowService.chatStream');
-      console.log('🔗 [aiApi] onComplete回调类型:', typeof onComplete);
+      console.log('🔗 [aiApi] 准备调用后端SSE聊天接口');
+      console.log('🔗 [aiApi] 参数:', { message: message.substring(0, 50) + '...', sessionId });
       
-      // 创建回调函数并添加调试
+      // 发送POST请求到后端AI接口
+      const response = await fetch(`${API_CONFIG.BASE_URL}/chat/ai`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+        },
+        body: JSON.stringify({
+          sessionId: parseInt(sessionId),
+          content: message
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [aiApi] 后端API请求失败:', response.status, response.statusText);
+        onError(`后端服务错误: ${response.status} ${response.statusText}\n${errorText}`);
+        return;
+      }
+
+      // 检查响应是否为SSE流
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('text/plain')) {
+        console.warn('⚠️ [aiApi] 响应Content-Type不是text/plain，可能不是SSE格式');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        onError('无法读取响应流');
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let completed = false;
+
+      console.log('✅ [aiApi] 开始处理SSE流式响应');
+
+      // 包装onComplete以确保只调用一次
       const wrappedOnComplete = async () => {
-        console.log('🔗 [aiApi] =====================================');
-        console.log('🔗 [aiApi] 收到siliconFlow的onComplete回调！！！');
-        console.log('🔗 [aiApi] wrappedOnComplete被调用了！');
-        console.log('🔗 [aiApi] 准备调用chatStore的onComplete');
-        console.log('🔗 [aiApi] onComplete回调类型检查:', typeof onComplete);
-        console.log('🔗 [aiApi] onComplete回调引用:', onComplete);
+        if (completed) return;
+        completed = true;
+        
+        console.log('🔗 [aiApi] 流式响应完成，调用onComplete');
         try {
-          console.log('🔗 [aiApi] 开始执行chatStore的onComplete...');
           const result = onComplete();
-          console.log('🔗 [aiApi] onComplete执行结果:', result);
-          console.log('🔗 [aiApi] 结果类型:', typeof result);
           if (result && typeof result.then === 'function') {
-            console.log('🔗 [aiApi] 检测到Promise，开始等待异步执行');
-            const awaitResult = await result;
-            console.log('🔗 [aiApi] chatStore的onComplete异步执行完成，结果:', awaitResult);
-          } else {
-            console.log('🔗 [aiApi] chatStore的onComplete同步执行完成');
+            await result;
           }
-          console.log('🔗 [aiApi] wrappedOnComplete执行完毕！');
-          console.log('🔗 [aiApi] =====================================');
+          console.log('✅ [aiApi] onComplete执行完成');
         } catch (error) {
-          console.error('🔗 [aiApi] chatStore的onComplete回调执行失败:', error);
-          console.error('🔗 [aiApi] 错误堆栈:', error instanceof Error ? error.stack : 'No stack trace');
-          throw error; // 重新抛出错误以便siliconflow.ts能捕获
+          console.error('❌ [aiApi] onComplete回调执行失败:', error);
+          throw error;
         }
       };
-      
-      console.log('🔗 [aiApi] 准备传递给siliconFlow的回调函数:', typeof wrappedOnComplete);
-      
-      // 使用硅基流动服务进行流式对话
-      await siliconFlowService.chatStream(
-        message,
-        [], // 历史消息，暂时为空
-        onChunk,
-        wrappedOnComplete,
-        onError
-      );
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            console.log('📥 [aiApi] 流式响应自然结束');
+            await wrappedOnComplete();
+            return;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // 保留最后一行不完整的内容
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+
+            console.log('🔍 [aiApi] SSE原始行:', trimmedLine);
+
+            // 解析SSE格式: id:xxx event:xxx data:xxx
+            try {
+              // 简化的SSE解析，假设每行都是完整的事件
+              if (trimmedLine.startsWith('id:')) {
+                // id行，跳过
+                continue;
+              } else if (trimmedLine.startsWith('event:')) {
+                const event = trimmedLine.substring(6).trim();
+                console.log('📧 [aiApi] SSE事件类型:', event);
+                
+                if (event === 'done') {
+                  console.log('🎯 [aiApi] 收到done事件，结束流式响应');
+                  await wrappedOnComplete();
+                  return;
+                }
+              } else if (trimmedLine.startsWith('data:')) {
+                const data = trimmedLine.substring(5).trim();
+                
+                if (data === 'done') {
+                  console.log('🎯 [aiApi] 收到done数据，结束流式响应');
+                  await wrappedOnComplete();
+                  return;
+                }
+                
+                if (data && data.length > 0) {
+                  console.log('📝 [aiApi] 收到数据块:', data.length, '字符');
+                  onChunk(data);
+                }
+              } else {
+                // 可能是没有前缀的纯数据
+                console.log('📝 [aiApi] 收到纯数据:', trimmedLine.length, '字符');
+                onChunk(trimmedLine);
+              }
+            } catch (parseError) {
+              console.warn('⚠️ [aiApi] SSE行解析失败:', trimmedLine, parseError);
+            }
+          }
+        }
+      } catch (streamError) {
+        console.error('❌ [aiApi] 流处理异常:', streamError);
+        await wrappedOnComplete(); // 确保即使出错也调用完成回调
+        throw streamError;
+      }
     } catch (error) {
-      console.error('AI流式对话失败:', error);
+      console.error('❌ [aiApi] AI流式对话失败:', error);
       onError(error instanceof Error ? error.message : '聊天服务异常');
     }
   },
 
-  // 非流式聊天
+  // 非流式聊天 - 已禁用，只支持流式聊天
   chat: async (messages: ChatMessage[], sessionId?: string): Promise<string> => {
     try {
-      return await siliconFlowService.chat(messages);
+      // 后端只支持流式响应，非流式聊天已废弃
+      throw new Error('非流式聊天已废弃，请使用chatStream方法');
     } catch (error) {
       console.error('AI对话失败:', error);
       return handleApiError(error);
@@ -128,9 +210,15 @@ export const aiApi = {
     }
   },
 
-  // 检查AI服务状态
+  // 检查AI服务状态 - 通过后端健康检查
   checkStatus: async (): Promise<boolean> => {
-    return await siliconFlowService.checkConnection();
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/health`);
+      return response.ok;
+    } catch (error) {
+      console.warn('AI服务状态检查失败:', error);
+      return false;
+    }
   }
 };
 
