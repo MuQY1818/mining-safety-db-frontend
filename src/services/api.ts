@@ -1,6 +1,47 @@
 // API服务层 - 统一管理所有API调用
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { Modal } from 'antd';
 import { SafetyData, SafetyLevel, MineType, SafetyCategory, UploadSafetyDataRequest } from '../types/safety';
+
+const isLoginRoute = () => typeof window !== 'undefined' && window.location.pathname === '/login';
+
+const isSessionModalVisible = () => typeof window !== 'undefined' && Boolean((window as any).__SESSION_EXPIRED_MODAL__);
+
+const setSessionModalVisible = (visible: boolean) => {
+  if (typeof window === 'undefined') return;
+  (window as any).__SESSION_EXPIRED_MODAL__ = visible;
+};
+
+const showSessionExpiredModal = () => {
+  if (typeof window === 'undefined' || isLoginRoute() || isSessionModalVisible()) {
+    return;
+  }
+
+  setSessionModalVisible(true);
+
+  Modal.warning({
+    title: '登录状态已过期',
+    content: '当前登录凭证已失效，请重新登录后继续使用矿区安全数据库。',
+    okText: '重新登录',
+    centered: true,
+    closable: false,
+    maskClosable: false,
+    onOk: () => {
+      setSessionModalVisible(false);
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    },
+    afterClose: () => {
+      if (isSessionModalVisible()) {
+        setSessionModalVisible(false);
+      }
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+  });
+};
 
 // API响应基础接口 - 匹配后端AjaxResult格式
 interface ApiResponse<T = any> {
@@ -133,15 +174,13 @@ class ApiService {
       },
       (error) => {
         if (error.response?.status === 401) {
-          // 避免在登录页面重复重定向
-          if (window.location.pathname !== '/login') {
+          if (!isLoginRoute()) {
             console.log('检测到401错误，触发登出流程');
-            // 通过动态导入避免循环依赖
             import('../store/authStore').then(({ useAuthStore }) => {
               const authStore = useAuthStore.getState();
               authStore.logout();
-              window.location.href = '/login';
             });
+            showSessionExpiredModal();
           }
         } else if (error.response?.status >= 500) {
           // 服务器错误，显示友好提示
