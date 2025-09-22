@@ -6,6 +6,24 @@ import { aiApi } from '../services/ai';
 import { chatHistoryService, ChatSession as BackendChatSession, ChatMessage as BackendChatMessage } from '../services/chatHistory';
 import { useAuthStore } from './authStore';
 
+// 规范化后端返回的消息内容，处理\n序列并统一换行
+const normalizeMessageContent = (content: string): string => {
+  if (!content) {
+    return '';
+  }
+
+  const unescaped = content
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t');
+
+  const normalizedNewLines = unescaped.replace(/\r\n?/g, '\n');
+
+  return normalizedNewLines
+    .replace(/\uFF1A\s*-\s*/g, '\uFF1A\n- ')
+    .replace(/([\u3002\uFF1B])\s*-\s*/g, '$1\n- ');
+};
+
 interface ChatState {
   // 状态
   sessions: ChatSession[];
@@ -14,6 +32,10 @@ interface ChatState {
   isStreaming: boolean;
   error: string | null;
   isInitialized: boolean;
+  // 消息加载状态
+  isLoadingMoreMessages: boolean;
+  messagesHasMore: boolean;
+  messagesCurrentPage: number;
 
   // 操作
   createSession: (title?: string) => Promise<string>;
@@ -25,6 +47,7 @@ interface ChatState {
     total: number;
     hasMore: boolean;
   }>;
+  loadMoreMessages: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
   clearError: () => void;
@@ -60,7 +83,7 @@ const convertBackendMessage = (backendMessage: BackendChatMessage, sessionId: st
   id: backendMessage.id.toString(),  // 前端使用string ID
   sessionId: sessionId,  // 使用传入的正确的sessionId，而不是message.id
   role: backendMessage.role,
-  content: backendMessage.content,
+  content: normalizeMessageContent(backendMessage.content),
   timestamp: new Date(backendMessage.createdAt),
   tokensUsed: undefined,  // 后端没有tokensUsed字段
   modelName: backendMessage.modelName,
@@ -94,6 +117,7 @@ const loadUserData = (userId: number): Partial<ChatState> => {
           updatedAt: new Date(session.updatedAt),
           messages: session.messages?.map((msg: any) => ({
             ...msg,
+            content: normalizeMessageContent(msg.content),
             timestamp: new Date(msg.timestamp)
           })) || []
         }));
@@ -105,6 +129,7 @@ const loadUserData = (userId: number): Partial<ChatState> => {
           updatedAt: new Date(data.currentSession.updatedAt),
           messages: data.currentSession.messages?.map((msg: any) => ({
             ...msg,
+            content: normalizeMessageContent(msg.content),
             timestamp: new Date(msg.timestamp)
           })) || []
         };
@@ -152,6 +177,10 @@ export const useChatStore = create<ChatState>()(
       isStreaming: false,
       error: null,
       isInitialized: false,
+      // 消息加载状态
+      isLoadingMoreMessages: false,
+      messagesHasMore: true,
+      messagesCurrentPage: 1,
 
       // 初始化 - 从后端加载会话列表
       initialize: async () => {
@@ -486,7 +515,10 @@ export const useChatStore = create<ChatState>()(
           set(state => ({
             currentSession: updatedSession,
             sessions: state.sessions.map(s => s.id === sessionId ? updatedSession : s),
-            isLoading: false
+            isLoading: false,
+            // 重置消息分页状态
+            messagesCurrentPage: 1,
+            messagesHasMore: messagesData!.list.length >= 20 || messagesData!.total > 20
           }));
 
           // 保存用户数据
@@ -604,6 +636,7 @@ export const useChatStore = create<ChatState>()(
             }
 
             console.log('📝 [chatStore] 更新AI消息，当前长度:', lastMessage.content.length, '添加chunk:', chunk.length);
+            const normalizedChunk = normalizeMessageContent(chunk);
 
             return {
               sessions: state.sessions.map(session =>
@@ -612,7 +645,7 @@ export const useChatStore = create<ChatState>()(
                       ...session,
                       messages: session.messages.map(msg =>
                         msg.id === lastMessage.id
-                          ? { ...msg, content: msg.content + chunk }
+                          ? { ...msg, content: msg.content + normalizedChunk }
                           : msg
                       )
                     }
@@ -622,7 +655,7 @@ export const useChatStore = create<ChatState>()(
                 ...state.currentSession,
                 messages: state.currentSession.messages.map(msg =>
                   msg.id === lastMessage.id
-                    ? { ...msg, content: msg.content + chunk }
+                    ? { ...msg, content: msg.content + normalizedChunk }
                     : msg
                 )
               },
@@ -758,6 +791,12 @@ export const useChatStore = create<ChatState>()(
       // 分页加载会话列表
       loadSessionsPaginated: async (page: number = 1, pageSize: number = 20) => {
         try {
+          // 验证pageSize范围，确保符合后端API限制(1-20)
+          if (pageSize < 1 || pageSize > 20) {
+            console.warn('⚠️ [chatStore] pageSize超出范围(1-20)，使用默认值20:', pageSize);
+            pageSize = 20;
+          }
+          
           // 如果是第一页，设置isLoading状态
           if (page === 1) {
             set({ isLoading: true, error: null });
@@ -797,6 +836,86 @@ export const useChatStore = create<ChatState>()(
             isLoading: false
           });
           throw error;
+        }
+      },
+
+      // 加载更多消息
+      loadMoreMessages: async (sessionId: string) => {
+        try {
+          const state = get();
+          if (state.isLoadingMoreMessages || !state.messagesHasMore) {
+            console.log('🔄 [chatStore] 跳过加载更多消息:', { 
+              isLoading: state.isLoadingMoreMessages, 
+              hasMore: state.messagesHasMore 
+            });
+            return;
+          }
+
+          set({ isLoadingMoreMessages: true, error: null });
+          console.log('🔄 [chatStore] 加载更多消息，会话:', sessionId, '页码:', state.messagesCurrentPage + 1);
+
+          const nextPage = state.messagesCurrentPage + 1;
+          const sessionIdNum = parseInt(sessionId);
+          
+          // 确保pageSize符合后端API限制(1-20)
+          const safePageSize = 20;
+
+          const messagesData = await chatHistoryService.getMessages(sessionIdNum, {
+            page: nextPage,
+            pageSize: safePageSize,
+            order: 'asc'
+          });
+
+          if (!messagesData || !messagesData.list) {
+            console.warn('⚠️ [chatStore] 加载更多消息失败：响应为空');
+            set({ isLoadingMoreMessages: false });
+            return;
+          }
+
+          const newMessages = messagesData.list.map((msg: BackendChatMessage) => 
+            convertBackendMessage(msg, sessionId)
+          );
+
+          console.log('✅ [chatStore] 成功加载更多消息:', newMessages.length, '条');
+
+          set(state => {
+            const currentSession = state.currentSession;
+            if (!currentSession || currentSession.id !== sessionId) {
+              return { isLoadingMoreMessages: false };
+            }
+
+            const updatedSession = {
+              ...currentSession,
+              // 将新消息插入到开头（因为是历史消息）
+              messages: [...newMessages, ...currentSession.messages]
+            };
+
+            return {
+              currentSession: updatedSession,
+              sessions: state.sessions.map(s => s.id === sessionId ? updatedSession : s),
+              isLoadingMoreMessages: false,
+              messagesCurrentPage: nextPage,
+              messagesHasMore: newMessages.length >= safePageSize || (nextPage * safePageSize) < messagesData.total
+            };
+          });
+
+          // 保存用户数据
+          try {
+            const currentState = get();
+            saveUserData(getCurrentUserId(), {
+              sessions: currentState.sessions,
+              currentSession: currentState.currentSession
+            });
+          } catch (saveError) {
+            console.warn('⚠️ [chatStore] 保存用户数据失败:', saveError);
+          }
+
+        } catch (error) {
+          console.error('❌ [chatStore] 加载更多消息失败:', error);
+          set({ 
+            isLoadingMoreMessages: false, 
+            error: error instanceof Error ? error.message : '加载更多消息失败' 
+          });
         }
       },
       
