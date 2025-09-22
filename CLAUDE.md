@@ -213,6 +213,8 @@ src/
 
 - `<YYYY-MM-DD>`：<改动摘要>；**影响面**：<受影响模块>；**回滚**：<回滚方式>；**相关**：<文件/PR/Issue>
 
+- 2025-09-13：修复pageSize超出后端API限制问题-恢复20条分页并保持增量加载功能；**影响面**：chatStore.ts所有pageSize从50恢复到20（符合后端1-20限制），添加pageSize验证防止超出范围，保留loadMoreMessages方法通过分页实现更多消息加载，ChatInterface.tsx滚动加载和AI状态检查功能完整保留；**回滚**：移除pageSize验证，恢复原有hardcode值；**相关**：chatStore.ts:235+448+501+751+771+835+843+875+877行pageSize修正，774-777行验证逻辑
+- 2025-09-13：重大修复聊天消息加载限制和AI服务状态诊断功能；**影响面**：chatStore.ts添加loadMoreMessages方法支持增量加载（pageSize从20提升至50），ChatInterface.tsx实现滚动加载更多历史消息，ai.ts新增健康检查和诊断功能，docker-compose.1panel.yml配置后端API环境变量，Docker镜像构建测试验证所有功能正常；**回滚**：恢复hardcode pageSize:20，移除loadMoreMessages相关代码和AI状态检查UI；**相关**：chatStore.ts:816-890+500-501+235-236+751+771，ChatInterface.tsx:99-145+418-455，ai.ts:14-120，docker-compose.1panel.yml:12-18
 - 2025-09-02：完成dev分支到main的merge操作-智能反馈状态通知功能正式发布；**影响面**：git merge解决CLAUDE.md和DataForm.tsx冲突，FeedbackList.tsx智能状态检查和右上角DOM通知系统正式并入主分支，文件上传通知系统统一使用appNotification，所有功能完整集成；**回滚**：git reset --hard HEAD~1恢复merge前状态；**相关**：CLAUDE.md冲突解决，DataForm.tsx统一通知系统，FeedbackList.tsx状态通知功能
 
 > **自动插入片段（Claude 可直接复用）**
@@ -294,3 +296,4 @@ src/
 - 2025-09-08：成功构建并推送Docker镜像到GitHub Container Registry；影响面：完成镜像构建和推送流程，镜像已上传至ghcr.io/muqy1818/mining-safety-db-frontend:latest；回滚：删除GitHub Container Registry中的镜像；相关：scripts/build-and-push.sh，Dockerfile，docker-compose.simple.yml
 - 2025-09-08：修复构建脚本API key占位符问题-重新构建推送包含真实API key的镜像；影响面：scripts/build-and-push.sh第150行修复，Docker镜像现在包含真实API key，服务器AI功能应该正常；回滚：恢复占位符配置；相关：scripts/build-and-push.sh:150行，ghcr.io/muqy1818/mining-safety-db-frontend:latest镜像
 - 2025-09-08：彻底修复AI功能离线问题-.env.production文件API key占位符替换为真实密钥；影响面：修复.env.production第13行API key，重新构建推送镜像，验证新镜像包含正确API key sk-mtluervosowzcbzqctuxrntymfenpgriigjjkhdmwrorpsby；回滚：恢复占位符配置；相关：.env.production:13行，ghcr.io/muqy1818/mining-safety-db-frontend:latest镜像
+- 2025-09-13：完成AI聊天功能token认证修复和Docker镜像构建推送；**影响面**：修复src/services/ai.ts中token获取键名(localStorage.getItem('token')→'auth_token')，解决合并冲突完成dev分支到main分支合并，清理Dockerfile中的API key配置适配后端代理架构，成功构建推送ghcr.io/muqy1818/mining-safety-db-frontend:latest镜像；**回滚**：使用前一版本镜像ghcr.io/muqy1818/mining-safety-db-frontend:<previous-tag>；**相关**：src/services/ai.ts:33行token修复，Dockerfile:27-30行环境变量清理，git merge解决冲突

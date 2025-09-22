@@ -11,6 +11,114 @@ import {
 } from '../types/ai';
 import { API_CONFIG } from '../config/api';
 
+// AI服务状态检查
+export const aiHealthCheck = {
+  // 检查AI服务健康状态
+  checkHealth: async (): Promise<{
+    status: 'online' | 'offline' | 'error';
+    message: string;
+    latency?: number;
+  }> => {
+    try {
+      const startTime = Date.now();
+      
+      const response = await fetch(`${API_CONFIG.BASE_URL}/chat/health`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+        },
+        timeout: 5000 // 5秒超时
+      } as any);
+
+      const latency = Date.now() - startTime;
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          status: 'online',
+          message: data.message || 'AI服务运行正常',
+          latency
+        };
+      } else {
+        return {
+          status: 'error',
+          message: `AI服务异常: ${response.status} ${response.statusText}`,
+          latency
+        };
+      }
+    } catch (error) {
+      console.error('❌ [aiHealthCheck] AI服务健康检查失败:', error);
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        return {
+          status: 'offline',
+          message: '无法连接AI服务，请检查网络连接'
+        };
+      }
+      
+      return {
+        status: 'error',
+        message: `AI服务检查失败: ${error instanceof Error ? error.message : '未知错误'}`
+      };
+    }
+  },
+
+  // 诊断AI服务问题
+  diagnose: async (): Promise<{
+    issues: string[];
+    suggestions: string[];
+  }> => {
+    const issues: string[] = [];
+    const suggestions: string[] = [];
+
+    try {
+      // 检查认证状态
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        issues.push('用户未登录');
+        suggestions.push('请先登录系统');
+      }
+
+      // 检查API基础配置
+      if (!API_CONFIG.BASE_URL) {
+        issues.push('API基础URL未配置');
+        suggestions.push('请检查环境变量REACT_APP_API_BASE_URL');
+      }
+
+      // 检查网络连接
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/health`, {
+          method: 'GET',
+          timeout: 3000
+        } as any);
+        
+        if (!response.ok) {
+          issues.push(`后端服务异常 (${response.status})`);
+          suggestions.push('请联系管理员检查后端服务状态');
+        }
+      } catch (networkError) {
+        issues.push('无法连接后端服务');
+        suggestions.push('请检查网络连接和后端服务地址');
+      }
+
+      // 检查AI功能配置
+      const healthResult = await aiHealthCheck.checkHealth();
+      if (healthResult.status !== 'online') {
+        issues.push(healthResult.message);
+        if (healthResult.status === 'offline') {
+          suggestions.push('请检查后端AI服务配置和API密钥');
+        }
+      }
+
+    } catch (error) {
+      issues.push('诊断过程中发生错误');
+      suggestions.push('请刷新页面重试或联系技术支持');
+    }
+
+    return { issues, suggestions };
+  }
+};
+
 // AI问答API
 export const aiApi = {
   // 流式聊天 - 使用后端SSE接口

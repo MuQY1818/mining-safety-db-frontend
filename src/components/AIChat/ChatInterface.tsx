@@ -30,6 +30,7 @@ import {
 } from '@ant-design/icons';
 import { ChatMessage } from '../../types/ai';
 import { useChatStore } from '../../store/chatStore';
+import { aiHealthCheck } from '../../services/ai';
 import { MINING_BLUE_COLORS } from '../../config/theme';
 
 const { TextArea } = Input;
@@ -45,6 +46,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, relatedItem, s
   const [inputValue, setInputValue] = useState('');
   const [showHistoryPanel, setShowHistoryPanel] = useState(true); // 默认显示历史面板
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  
+  // AI服务状态
+  const [aiStatus, setAiStatus] = useState<{
+    status: 'checking' | 'online' | 'offline' | 'error';
+    message: string;
+    latency?: number;
+  }>({ status: 'checking', message: '检查AI服务状态中...' });
   const {
     sessions,
     currentSession,
@@ -54,7 +63,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, relatedItem, s
     createSession,
     setCurrentSession,
     deleteSession,
-    clearError
+    clearError,
+    loadMoreMessages,
+    isLoadingMoreMessages,
+    messagesHasMore
   } = useChatStore();
 
   // 快捷问题
@@ -91,6 +103,46 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, relatedItem, s
       handleSendMessage(introMessage);
     }
   }, [relatedItem, currentSession]);
+
+  // 滚动监听，实现加载更多历史消息
+  useEffect(() => {
+    const messagesContainer = messagesContainerRef.current;
+    if (!messagesContainer) return;
+
+    const handleScroll = () => {
+      // 当滚动到顶部附近时，加载更多消息
+      if (messagesContainer.scrollTop < 100 && messagesHasMore && !isLoadingMoreMessages && currentSession) {
+        loadMoreMessages(currentSession.id);
+      }
+    };
+
+    messagesContainer.addEventListener('scroll', handleScroll);
+    return () => {
+      messagesContainer.removeEventListener('scroll', handleScroll);
+    };
+  }, [loadMoreMessages, messagesHasMore, isLoadingMoreMessages, currentSession]);
+
+  // AI服务状态检查
+  useEffect(() => {
+    const checkAiStatus = async () => {
+      try {
+        const result = await aiHealthCheck.checkHealth();
+        setAiStatus(result);
+      } catch (error) {
+        setAiStatus({
+          status: 'error',
+          message: '检查AI服务状态失败'
+        });
+      }
+    };
+
+    // 初始检查
+    checkAiStatus();
+
+    // 定期检查（每30秒）
+    const interval = setInterval(checkAiStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -347,8 +399,64 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, relatedItem, s
         </div>
       )}
 
+      {/* AI服务状态指示器 */}
+      <div style={{ 
+        padding: '8px 16px', 
+        background: aiStatus.status === 'online' ? '#f6ffed' : 
+                   aiStatus.status === 'offline' ? '#fff1f0' : 
+                   aiStatus.status === 'error' ? '#fff2f0' : '#f0f0f0',
+        borderBottom: '1px solid #d9d9d9',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ 
+            width: 8, 
+            height: 8, 
+            borderRadius: '50%', 
+            backgroundColor: aiStatus.status === 'online' ? '#52c41a' : 
+                           aiStatus.status === 'offline' ? '#ff4d4f' : 
+                           aiStatus.status === 'error' ? '#ff7a45' : '#d9d9d9',
+            marginRight: 8 
+          }} />
+          <Text style={{ 
+            fontSize: 12,
+            color: aiStatus.status === 'online' ? '#52c41a' : 
+                   aiStatus.status === 'offline' ? '#ff4d4f' : 
+                   aiStatus.status === 'error' ? '#ff7a45' : '#666'
+          }}>
+            AI服务: {aiStatus.message}
+          </Text>
+          {aiStatus.latency && aiStatus.status === 'online' && (
+            <Text style={{ fontSize: 11, color: '#999', marginLeft: 8 }}>
+              ({aiStatus.latency}ms)
+            </Text>
+          )}
+        </div>
+        {aiStatus.status !== 'online' && (
+          <Button 
+            size="small" 
+            type="link" 
+            onClick={async () => {
+              setAiStatus({ status: 'checking', message: '重新检查中...' });
+              try {
+                const result = await aiHealthCheck.checkHealth();
+                setAiStatus(result);
+              } catch (error) {
+                setAiStatus({ status: 'error', message: '检查失败' });
+              }
+            }}
+            style={{ padding: 0, height: 'auto', fontSize: 11 }}
+          >
+            重新检查
+          </Button>
+        )}
+      </div>
+
       {/* 消息列表 */}
       <div
+        ref={messagesContainerRef}
         style={{
           flex: 1,
           padding: '16px',
@@ -389,6 +497,31 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ sessionId, relatedItem, s
                 ))}
               </Space>
             </div>
+          </div>
+        )}
+
+        {/* 加载更多消息指示器 */}
+        {currentSession?.messages && currentSession.messages.length > 0 && (
+          <div style={{ textAlign: 'center', padding: '16px 0', borderBottom: '1px solid #f0f0f0' }}>
+            {isLoadingMoreMessages ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Spin size="small" />
+                <Text type="secondary" style={{ marginLeft: 8 }}>加载更多历史消息...</Text>
+              </div>
+            ) : messagesHasMore ? (
+              <Button 
+                type="link" 
+                size="small"
+                onClick={() => currentSession && loadMoreMessages(currentSession.id)}
+                style={{ color: MINING_BLUE_COLORS.primary }}
+              >
+                点击加载更多历史消息
+              </Button>
+            ) : (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                已显示所有历史消息
+              </Text>
+            )}
           </div>
         )}
 

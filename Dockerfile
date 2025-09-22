@@ -23,18 +23,10 @@ RUN npm ci --only=production --no-audit --no-fund
 # 复制源代码
 COPY . .
 
-# 设置构建时环境变量
-<<<<<<< HEAD
-ARG REACT_APP_SILICONFLOW_API_KEY
-=======
+# 设置构建时环境变量 - AI服务已迁移到后端，前端不再需要API密钥
 ARG REACT_APP_API_BASE_URL=https://mining-backend.ziven.site/api
-ARG REACT_APP_SILICONFLOW_API_KEY=default_placeholder_key
 
-# 确保环境变量在构建时可用（仅用于构建，不在生产环境暴露）
-ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
->>>>>>> dev
-ENV REACT_APP_SILICONFLOW_API_KEY=$REACT_APP_SILICONFLOW_API_KEY
-ARG REACT_APP_API_BASE_URL
+# 确保环境变量在构建时可用
 ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
 
 # 构建应用
