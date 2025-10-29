@@ -18,7 +18,7 @@ const getRuntimeConfig = (): RuntimeConfig => {
   
   // 返回默认配置
   return {
-    REACT_APP_API_BASE_URL: 'https://mining-backend.ziven.site/api',
+    REACT_APP_API_BASE_URL: 'http://117.72.145.157:8081/api',
     REACT_APP_SILICONFLOW_API_KEY: '',
     REACT_APP_ENABLE_AI_CHAT: 'true',
     REACT_APP_ENABLE_FEEDBACK: 'true',
@@ -35,7 +35,7 @@ export const getRuntimeEnv = (key: keyof RuntimeConfig): string => {
 // 运行时配置对象
 export const RUNTIME_CONFIG = {
   get API_BASE_URL(): string {
-    return getRuntimeEnv('REACT_APP_API_BASE_URL') || 'https://mining-backend.ziven.site/api';
+    return getRuntimeEnv('REACT_APP_API_BASE_URL') || 'http://117.72.145.157:8081/api';
   },
   
   get SILICONFLOW_API_KEY(): string {

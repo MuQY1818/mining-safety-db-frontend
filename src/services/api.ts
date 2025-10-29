@@ -100,7 +100,7 @@ class ApiService {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8081/api';
+    this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://117.72.145.157:8081/api';
     
     this.client = axios.create({
       baseURL: this.baseURL,

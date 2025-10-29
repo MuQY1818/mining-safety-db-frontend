@@ -1,7 +1,7 @@
 // API接口端点定义
 
 // 基础API配置
-export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8081/api';
+export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://117.72.145.157:8081/api';
 
 // API端点常量
 export const API_ENDPOINTS = {

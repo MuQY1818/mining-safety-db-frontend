@@ -2,7 +2,7 @@
 
 export const API_CONFIG = {
   // 本地后端服务地址
-  BASE_URL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8081/api',
+  BASE_URL: process.env.REACT_APP_API_BASE_URL || 'http://117.72.145.157:8081/api',
   
   // 是否使用Mock数据
   USE_MOCK: process.env.REACT_APP_USE_MOCK === 'false',
